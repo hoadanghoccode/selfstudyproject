@@ -15,7 +15,6 @@ import {
 import {
   Avatar,
   Button,
-  Card,
   Layout,
   Menu,
   Switch,
@@ -35,13 +34,13 @@ import FeedbackPage from "./pages/FeedbackPage";
 import FormsPage from "./pages/FormsPage";
 import NavigationPage from "./pages/NavigationPage";
 // import TableCrudPage from "./pages/TableCrudPage";
-import WizardPage from "./pages/WizardPage";
+import { useState } from "react";
 import "./App.css";
 import Language from "./components/Language";
-import VersionCard from "./components/VersionCard";
 import SocialPill from "./components/SocialPill";
-import { useState } from "react";
+import VersionCard from "./components/VersionCard";
 import AccountsPage from "./pages/AccountPage";
+import WizardPage from "./pages/WizardPage";
 
 const { Header, Sider, Content, Footer } = Layout;
 

@@ -9,6 +9,7 @@ interface CategoryFormValues {
 }
 
 interface ModalAddCategoryProps {
+  isEdit: boolean;
   visible: boolean;
   onCancel: () => void;
   onSubmit: (values: CategoryFormValues) => void;
@@ -27,6 +28,7 @@ const ModalAddCategory: React.FC<ModalAddCategoryProps> = ({
   visible,
   onCancel,
   onSubmit,
+  isEdit,
   loading = false,
 }) => {
   const initialValues: CategoryFormValues = {
@@ -129,7 +131,7 @@ const ModalAddCategory: React.FC<ModalAddCategoryProps> = ({
                 loading={isSubmitting || loading}
                 disabled={isSubmitting || loading}
               >
-                Thêm danh mục
+                {isEdit ? "Cập nhật danh mục" : "Thêm danh mục"}
               </Button>
             </Form.Item>
           </Form>

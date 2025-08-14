@@ -6,3 +6,17 @@ export const toast = {
 };
 export const noti = (msg: string, desc?: string) =>
   notification.open({ message: msg, description: desc });
+
+export function showNotification(statusCode: number, message?: string) {
+  if (statusCode === 200 || statusCode === 201) {
+    notification.success({
+      message: message || "Thành công",
+      placement: "topRight",
+    });
+  } else {
+    notification.error({
+      message: message || "Thất bại",
+      placement: "topRight",
+    });
+  }
+}

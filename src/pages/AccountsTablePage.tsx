@@ -1,5 +1,4 @@
 // pages/AccountsPage.tsx
-import { useState } from "react";
 import {
   ChromeOutlined,
   DeleteOutlined,
@@ -7,6 +6,7 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Space, theme } from "antd";
+import { useState } from "react";
 import ColumnChooserButton from "../components/ColumnChooserButton";
 import CustomTable from "../components/CustomTable";
 import { content } from "../mocks/sampledata";
@@ -114,7 +114,14 @@ export default function AccountsTablePage({ setData }: Props) {
         <div style={{ marginLeft: "auto" }} />
         {/* nút khác của riêng trang này */}
         <Space>
-          <Button icon={<ChromeOutlined />}>Đóng trình duyệt</Button>
+          <Button
+            icon={<ChromeOutlined />}
+            onClick={() => {
+              window.close();
+            }}
+          >
+            Đóng trình duyệt
+          </Button>
         </Space>
 
         <Space>
