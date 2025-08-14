@@ -330,7 +330,7 @@ function Shell() {
           }}
         >
           <Routes>
-            <Route path="/" element={<FormsPage />} />
+            <Route path="/" element={<AccountsPage />} />
             <Route path="/table" element={<AccountsPage />} />
             <Route path="/wizard" element={<WizardPage />} />
             <Route path="/display" element={<DisplayPage />} />
