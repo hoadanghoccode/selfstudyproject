@@ -1,0 +1,163 @@
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+/* Đảm bảo Ant Design Layout hoạt động đúng */
+.ant-layout {
+  min-height: 100vh;
+}
+
+/* Đảm bảo không có overflow */
+.ant-layout-sider {
+  overflow: hidden;
+}
+
+.ant-layout-content {
+  overflow-x: auto;
+}
+
+/* Responsive cho màn hình nhỏ */
+@media (max-width: 768px) {
+  .ant-layout-sider {
+    position: fixed;
+    z-index: 1000;
+  }
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* làm đậm tiêu đề nhóm */
+.sider-menu .ant-menu-submenu-title {
+  font-weight: 600;
+}
+
+/* vạch dọc ở mục con */
+.sider-menu .ant-menu-sub .ant-menu-item {
+  position: relative;
+  padding-left: 28px !important; /* đẩy chữ ra xa vạch */
+}
+.sider-menu .ant-menu-sub .ant-menu-item::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: #000; /* xanh nhạt */
+  border-radius: 2px;
+}
+
+.version-card-wrap {
+  position: relative;
+  margin: 16px;
+}
+
+/* nút tròn nhỏ ở đỉnh card */
+.version-card-handle {
+  position: absolute;
+  left: 50%;
+  top: -12px;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #eaecef;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  color: #8c8c8c;
+  z-index: 1;
+  font-size: 12px;
+}
+
+/* shadow + bo góc card */
+.version-card {
+  text-align: center;
+  border-radius: 12px !important;
+  border: 1px solid #eef2f6;
+  box-shadow: 0 6px 20px rgba(31, 47, 70, 0.08);
+  /* có thể dùng token của AntD:
+     box-shadow: var(--ant-box-shadow-secondary);
+  */
+  transition: all 0.2s ease;
+}
+
+.version-card:hover {
+  box-shadow: 0 10px 28px rgba(31, 47, 70, 0.12);
+  transform: translateY(-1px);
+}
+
+/* App.css (hoặc file css/scss bất kỳ) */
+.social-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #54a5ff 0%, #3f7fff 100%);
+  box-shadow: 0 6px 18px rgba(31, 47, 70, 0.12);
+}
+
+.social-pill .pill-btn {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.social-pill .pill-btn > span.anticon {
+  font-size: 18px;
+}
+
+.social-pill .pill-btn img {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.social-pill .pill-btn.ring {
+  /* nút đầu có “viền” trắng giống ảnh */
+  border: 3px solid #e6f4ff !important;
+  background: #fff !important;
+}
