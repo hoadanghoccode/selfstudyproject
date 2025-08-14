@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from "react";
 import { Table, Pagination, Select, Typography } from "antd";
 import type { TableProps } from "antd/es/table";
+import { useI18n } from "../i18n/I18nContext";
 
 type Order = "ascend" | "descend" | null;
 
@@ -60,6 +61,7 @@ export default function CustomTable<T extends object>({
   rowKey,
   pageSizeOptions = [10, 20, 50, 100, 1000],
 }: CustomTableProps<T>) {
+  const { t } = useI18n();
   // ===== rowKey =====
   const getRowKey =
     typeof rowKey === "function"
@@ -172,7 +174,7 @@ export default function CustomTable<T extends object>({
 
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <Typography.Text>
-          Hiển thị {from} đến {to} trong {count} dữ liệu
+          {t("account.table.range", { from, to, count })}
         </Typography.Text>
 
         <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>

@@ -10,7 +10,7 @@ import React, { useMemo } from "react";
 import FlagEn from "../assets/images/flag/icon-flag-en.svg";
 import FlagVn from "../assets/images/flag/vn.png";
 
-type LangValue = "en" | "ch" | "fr" | "ar" | "vn";
+type LangValue = "en" | "vn";
 
 const Languages: Array<{ flagname: string; icon: string; value: LangValue }> = [
   { flagname: "VietNam (VN)", icon: FlagVn, value: "vn" },

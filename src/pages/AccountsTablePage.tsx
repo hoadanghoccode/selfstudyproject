@@ -10,6 +10,7 @@ import { useState } from "react";
 import ColumnChooserButton from "../components/ColumnChooserButton";
 import CustomTable from "../components/CustomTable";
 import { content } from "../mocks/sampledata";
+import { useI18n } from "../i18n/I18nContext";
 // import axios from "axios";
 
 export type Account = {
@@ -43,27 +44,58 @@ export default function AccountsTablePage({ setData }: Props) {
   //   const [sortField, setSortField] = useState<string | undefined>();
   //   const [sortOrder, setSortOrder] = useState<"ascend" | "descend" | null>(null);
   setData(content); // set data ban đầu
+  const { t } = useI18n();
 
   const columns: any = [
     {
-      title: "Số điện thoại",
+      title: t("account.table.phone"),
       dataIndex: "phone",
       key: "phone",
       width: 140,
       sorter: true,
     },
-    { title: "Mật khẩu", dataIndex: "password", key: "password", width: 120 },
-    { title: "Danh mục", dataIndex: "category", key: "category", width: 120 },
-    { title: "Cookie", dataIndex: "cookie", key: "cookie", ellipsis: true },
-    { title: "Ngày sinh", dataIndex: "birthday", key: "birthday", width: 120 },
     {
-      title: "Họ và tên",
+      title: t("account.table.password"),
+      dataIndex: "password",
+      key: "password",
+      width: 120,
+    },
+    {
+      title: t("account.table.category"),
+      dataIndex: "category",
+      key: "category",
+      width: 120,
+    },
+    {
+      title: t("account.table.cookie"),
+      dataIndex: "cookie",
+      key: "cookie",
+      ellipsis: true,
+    },
+    {
+      title: t("account.table.birthday"),
+      dataIndex: "birthday",
+      key: "birthday",
+      width: 120,
+    },
+    {
+      title: t("account.table.fullName"),
       dataIndex: "createdBy",
       key: "createdBy",
       width: 140,
     },
-    { title: "Giới tính", dataIndex: "gender", key: "gender", width: 100 },
-    { title: "Proxy", dataIndex: "proxy", key: "proxy", width: 120 },
+    {
+      title: t("account.table.gender"),
+      dataIndex: "gender",
+      key: "gender",
+      width: 100,
+    },
+    {
+      title: t("account.table.proxy"),
+      dataIndex: "proxy",
+      key: "proxy",
+      width: 120,
+    },
   ];
 
   return (
@@ -105,9 +137,11 @@ export default function AccountsTablePage({ setData }: Props) {
 
         {/* Thống kê tổng số, live, die, đã chọn */}
         <span style={{ marginLeft: 8, fontWeight: "bold" }}>
-          Tổng số: <span style={{ color: "#1677ff" }}>1</span> Live:{" "}
+          {t("account.management.total")}:{" "}
+          <span style={{ color: "#1677ff" }}>1</span> Live:{" "}
           <span style={{ color: "#52c41a" }}>1</span> Die:{" "}
-          <span style={{ color: "#ff4d4f" }}>0</span> Đã chọn:{" "}
+          <span style={{ color: "#ff4d4f" }}>0</span>{" "}
+          {t("account.management.selected")}:{" "}
           <span style={{ color: "#1677ff" }}>0</span>
         </span>
 
@@ -120,12 +154,15 @@ export default function AccountsTablePage({ setData }: Props) {
               window.close();
             }}
           >
-            Đóng trình duyệt
+            {/* Đóng trình duyệt    */}
+            {t("account.management.closeBrowser")}
           </Button>
         </Space>
 
         <Space>
-          <Button icon={<DeleteOutlined />}>Thùng rác</Button>
+          <Button icon={<DeleteOutlined />}>
+            {t("account.management.trash")}
+          </Button>
         </Space>
 
         {/* Tùy chỉnh cột – nằm ngoài CustomTable */}

@@ -3,6 +3,7 @@ import React from "react";
 import { Button, Checkbox, Popover } from "antd";
 import { ColumnHeightOutlined } from "@ant-design/icons";
 import type { Column } from "./CustomTable";
+import { useI18n } from "../i18n/I18nContext";
 
 type Props = {
   columns: Column[]; // danh sách TẤT CẢ cột (theo config)
@@ -15,13 +16,13 @@ export default function ColumnChooserButton({
   columns,
   hiddenKeys,
   onChange,
-  buttonText = "Tùy chỉnh cột",
-}: Props) {
+}: //   buttonText = "Tùy chỉnh cột",
+Props) {
   // Hiển thị các cột đang BẬT trong Checkbox.Group
   const checked = columns
     .filter((c) => !hiddenKeys.includes(c.dataIndex))
     .map((c) => c.dataIndex);
-
+  const { t } = useI18n();
   return (
     <Popover
       trigger="click"
@@ -44,7 +45,9 @@ export default function ColumnChooserButton({
         />
       }
     >
-      <Button icon={<ColumnHeightOutlined />}>{buttonText}</Button>
+      <Button icon={<ColumnHeightOutlined />}>
+        {t("account.management.columnCustomization")}
+      </Button>
     </Popover>
   );
 }

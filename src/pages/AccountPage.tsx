@@ -21,6 +21,7 @@ import ModalAddCategory from "../components/ModalAddCategory";
 import ModalAddCustomer from "../components/ModalAddCustomer";
 import { showNotification } from "../utils/notify";
 import AccountsTablePage from "./AccountsTablePage"; // 🔹 table bên phải bạn đã có
+import { useI18n } from "../i18n/I18nContext";
 
 const AccountPage: React.FC = () => {
   // demo data danh mục (thay bằng API thực tế)
@@ -84,6 +85,7 @@ const AccountPage: React.FC = () => {
     setOpen(false);
     console.log("Deleting category:");
   };
+  const { t, lang, setLang } = useI18n();
 
   return (
     <>
@@ -91,13 +93,15 @@ const AccountPage: React.FC = () => {
         {/* Page header */}
         <div style={{ display: "flex", alignItems: "center" }}>
           <Typography.Title level={4} style={{ margin: 0, flex: 1 }}>
-            Danh sách tài khoản
+            {t("menu.accounts")}
           </Typography.Title>
           <Space>
             <Button onClick={() => setIsModalOpen(true)} type="primary">
-              Thêm tài khoản
+              {t("account.management.addAccount")}
             </Button>
-            <Button onClick={exportToExcel}>Xuất dữ liệu</Button>
+            <Button onClick={exportToExcel}>
+              {t("account.management.exportData")}
+            </Button>
           </Space>
         </div>
 
@@ -108,7 +112,10 @@ const AccountPage: React.FC = () => {
               <Card size="small">
                 <Row gutter={12}>
                   <Col span={8}>
-                    <Statistic title="Tổng số" value={1} />
+                    <Statistic
+                      title={t("account.management.total")}
+                      value={1}
+                    />
                   </Col>
                   <Col span={8}>
                     <Statistic
@@ -127,7 +134,7 @@ const AccountPage: React.FC = () => {
                 </Row>
               </Card>
 
-              <Card size="small" title="Quản lý danh mục">
+              <Card size="small" title={t("account.management.category")}>
                 <div
                   style={{ display: "flex", justifyContent: "space-between" }}
                 >
@@ -142,7 +149,7 @@ const AccountPage: React.FC = () => {
                     icon={<PlusOutlined />}
                     onClick={() => setModalVisible(true)}
                   >
-                    Thêm
+                    {t("account.management.add")}
                   </Button>
                 </div>
                 <List

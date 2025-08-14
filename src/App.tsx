@@ -12,16 +12,7 @@ import {
   UserAddOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import {
-  Avatar,
-  Button,
-  Layout,
-  Menu,
-  Switch,
-  theme,
-  Typography,
-  type MenuProps,
-} from "antd";
+import { Avatar, Button, Layout, Menu, Switch, theme, Typography } from "antd";
 import {
   BrowserRouter,
   Link,
@@ -40,109 +31,14 @@ import SocialPill from "./components/SocialPill";
 import VersionCard from "./components/VersionCard";
 import AccountsPage from "./pages/AccountPage";
 import WizardPage from "./pages/WizardPage";
+import { useI18n } from "./i18n/I18nContext";
 
 const { Header, Sider, Content, Footer } = Layout;
 
-const sideItems: MenuProps["items"] = [
-  {
-    key: "/",
-    icon: <HomeOutlined />,
-    label: <Link to="/table">Quản lý tài khoản</Link>,
-  },
-
-  {
-    key: "content",
-    icon: <AppstoreOutlined />,
-    label: "Quản lý nội dung",
-    children: [
-      {
-        key: "/content/messages",
-        label: <Link to="/content/messages">Quản lý tin nhắn</Link>,
-        disabled: true,
-      },
-    ],
-  },
-
-  {
-    key: "sms",
-    icon: <MessageOutlined />,
-    label: "Chức năng nhắn tin",
-    children: [
-      {
-        key: "/sms/by-friends",
-        label: <Link to="/sms/by-friends">Theo bạn bè</Link>,
-      },
-      {
-        key: "/sms/by-phone",
-        label: <Link to="/sms/by-phone">Theo số điện thoại</Link>,
-      },
-      {
-        key: "/sms/by-group",
-        label: <Link to="/sms/by-group">Theo nhóm</Link>,
-      },
-      {
-        key: "/sms/history",
-        label: <Link to="/sms/history">Lịch sử nhắn tin</Link>,
-      },
-    ],
-  },
-
-  {
-    key: "friend",
-    icon: <UserAddOutlined />,
-    label: "Chức năng kết bạn",
-    children: [
-      {
-        key: "/friend/add",
-        label: <Link to="/friend/add">Chức năng kết bạn</Link>,
-      },
-      {
-        key: "/friend/status",
-        label: <Link to="/friend/status">Trạng thái kết bạn</Link>,
-      },
-      {
-        key: "/friend/history",
-        label: <Link to="/friend/history">Lịch sử kết bạn</Link>,
-      },
-    ],
-  },
-
-  {
-    key: "group",
-    icon: <TeamOutlined />,
-    label: "Chức năng nhóm",
-    children: [
-      {
-        key: "/group/interaction",
-        label: <Link to="/group/interaction">Tương tác nhóm</Link>,
-      },
-      {
-        key: "/group/link-interaction",
-        label: (
-          <Link to="/group/link-interaction">Tương tác với link nhóm</Link>
-        ),
-      },
-    ],
-  },
-
-  {
-    key: "proxy",
-    icon: <CloudServerOutlined />,
-    label: "Quản lý Proxy",
-    children: [
-      {
-        key: "/proxy/static",
-        label: <Link to="/proxy/static">Quản lý Proxy tĩnh</Link>,
-      },
-      {
-        key: "/proxy/dynamic",
-        label: <Link to="/proxy/dynamic">Cấu hình Proxy động</Link>,
-      },
-    ],
-  },
-];
+// Removed unused sideItems; menu is built with i18n dynamically below
 
 function Shell() {
+  const { t, lang, setLang } = useI18n();
   const { token } = theme.useToken();
   const location = useLocation();
   const selectedKey = location.pathname || "/";
@@ -186,7 +82,64 @@ function Shell() {
             className="sider-menu"
             theme="light"
             mode="inline"
-            items={sideItems}
+            items={[
+              {
+                key: "/",
+                icon: <HomeOutlined />,
+                label: <Link to="/table">{t("menu.accounts")}</Link>,
+              },
+              {
+                key: "content",
+                icon: <AppstoreOutlined />,
+                label: t("menu.content"),
+                children: [
+                  {
+                    key: "/content/messages",
+                    label: <Link to="/content/messages">{t("menu.messages")}</Link>,
+                    disabled: true,
+                  },
+                ],
+              },
+              {
+                key: "sms",
+                icon: <MessageOutlined />,
+                label: t("menu.sms"),
+                children: [
+                  { key: "/sms/by-friends", label: <Link to="/sms/by-friends">{t("menu.sms.byFriends")}</Link> },
+                  { key: "/sms/by-phone", label: <Link to="/sms/by-phone">{t("menu.sms.byPhone")}</Link> },
+                  { key: "/sms/by-group", label: <Link to="/sms/by-group">{t("menu.sms.byGroup")}</Link> },
+                  { key: "/sms/history", label: <Link to="/sms/history">{t("menu.sms.history")}</Link> },
+                ],
+              },
+              {
+                key: "friend",
+                icon: <UserAddOutlined />,
+                label: t("menu.friend"),
+                children: [
+                  { key: "/friend/add", label: <Link to="/friend/add">{t("menu.friend.add")}</Link> },
+                  { key: "/friend/status", label: <Link to="/friend/status">{t("menu.friend.status")}</Link> },
+                  { key: "/friend/history", label: <Link to="/friend/history">{t("menu.friend.history")}</Link> },
+                ],
+              },
+              {
+                key: "group",
+                icon: <TeamOutlined />,
+                label: t("menu.group"),
+                children: [
+                  { key: "/group/interaction", label: <Link to="/group/interaction">{t("menu.group.interaction")}</Link> },
+                  { key: "/group/link-interaction", label: <Link to="/group/link-interaction">{t("menu.group.linkInteraction")}</Link> },
+                ],
+              },
+              {
+                key: "proxy",
+                icon: <CloudServerOutlined />,
+                label: t("menu.proxy"),
+                children: [
+                  { key: "/proxy/static", label: <Link to="/proxy/static">{t("menu.proxy.static")}</Link> },
+                  { key: "/proxy/dynamic", label: <Link to="/proxy/dynamic">{t("menu.proxy.dynamic")}</Link> },
+                ],
+              },
+            ]}
             selectedKeys={[selectedKey]}
             defaultOpenKeys={["content", "sms", "friend", "group", "proxy"]}
             style={{ borderRight: 0 }}
@@ -257,20 +210,13 @@ function Shell() {
               gap: 8,
             }}
           >
-            <div>Không đổi Proxy</div>
+            <div>{t("header.no_proxy")}</div>
             <Switch
               defaultChecked
               onChange={onChange}
               style={{ transform: "scale(0.8)" }}
             />
-            <Language
-              value="vn"
-              onChange={(lang) => {
-                console.log("Change language ->", lang);
-                // Nếu dùng i18next thuần:
-                // i18n.changeLanguage(lang);
-              }}
-            />
+            <Language value={lang} onChange={setLang as (v: any) => void} />
             <Button type="text" icon={<BellOutlined />} />
             <Button type="text" icon={<PlayCircleOutlined />} />
             <Button type="text" icon={<SettingOutlined />} />
@@ -338,7 +284,7 @@ function Shell() {
           </Routes>
         </Content>
 
-        <Footer style={{ textAlign: "center" }}>AntD Lab ©2025</Footer>
+        <Footer style={{ textAlign: "center" }}>{t("footer.copyright")}</Footer>
       </Layout>
     </Layout>
   );
