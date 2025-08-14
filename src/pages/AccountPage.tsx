@@ -85,7 +85,7 @@ const AccountPage: React.FC = () => {
     setOpen(false);
     console.log("Deleting category:");
   };
-  const { t, lang, setLang } = useI18n();
+  const { t } = useI18n();
 
   return (
     <>
