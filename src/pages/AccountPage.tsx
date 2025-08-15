@@ -1,4 +1,4 @@
-import { Button, Card, Col, message, Row, Space, Typography } from "antd";
+import { Button, Card, Col, message, Row, Space } from "antd";
 import { saveAs } from "file-saver";
 import React, { useState } from "react";
 import * as XLSX from "xlsx";
@@ -80,7 +80,13 @@ const AccountPage: React.FC = () => {
     <>
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
         {/* Page header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
           {/* LEFT: Category Manager */}
           <CategoryManager
             categories={categories} // [{key, name}, ...]
@@ -94,7 +100,7 @@ const AccountPage: React.FC = () => {
             onDelete={() => setOpen(true)} // mở confirm xóa
             t={t}
           />
-          
+
           {/* RIGHT: Action buttons */}
           <Space>
             <Button onClick={() => setIsModalOpen(true)} type="primary">

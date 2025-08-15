@@ -1,5 +1,5 @@
 import { PlusOutlined } from "@ant-design/icons";
-import { Button, Checkbox, Input, Select, Space, Typography } from "antd";
+import { Button, Checkbox, Select, Space, Typography } from "antd";
 
 type Category = { key: string; name: string };
 

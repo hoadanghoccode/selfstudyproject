@@ -308,17 +308,17 @@ export default function CustomTableV2<T extends object>({
   if (contextMenuEnabled && getContextMenu && dataSource.length === 0) {
     return (
       <Dropdown
-        menu={getContextMenu({} as T, [], dataSource)}
+        menu={getContextMenu({} as T, [], [], dataSource)}
         trigger={["contextMenu"]}
         getPopupContainer={() => document.body}
         overlayStyle={{ zIndex: 10000 }}
       >
-        <div 
+        <div
           onContextMenu={(e) => e.preventDefault()}
-          style={{ 
-            minHeight: 200, 
+          style={{
+            minHeight: 200,
             cursor: "context-menu",
-            width: "100%"
+            width: "100%",
           }}
         >
           {content}
