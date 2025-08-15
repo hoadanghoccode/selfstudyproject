@@ -8,6 +8,7 @@ import {
   Input,
   List,
   Menu,
+  message,
   Row,
   Space,
   Statistic,
@@ -22,6 +23,7 @@ import ModalAddCustomer from "../components/ModalAddCustomer";
 import { showNotification } from "../utils/notify";
 import AccountsTablePage from "./AccountsTablePage"; // 🔹 table bên phải bạn đã có
 import { useI18n } from "../i18n/I18nContext";
+import ImportAccountsModal from "../components/ModalAddCustomer";
 
 const AccountPage: React.FC = () => {
   // demo data danh mục (thay bằng API thực tế)
@@ -69,16 +71,35 @@ const AccountPage: React.FC = () => {
     showNotification(201, "Tạo danh mục thành công");
   };
 
-  const categoryData: any = [
-    { value: "cat1", label: "Danh mục 1" },
-    { value: "cat3", label: "Danh mục 2" },
-    { value: "cat4", label: "Danh mục 2" },
-    { value: "cat5", label: "Danh mục 2" },
-    { value: "cat6", label: "Danh mục 2" },
-    { value: "cat7", label: "Danh mục 2" },
-  ];
+  // const categoryData: any = [
+  //   { value: "cat1", label: "Danh mục 1" },
+  //   { value: "cat3", label: "Danh mục 2" },
+  //   { value: "cat4", label: "Danh mục 2" },
+  //   { value: "cat5", label: "Danh mục 2" },
+  //   { value: "cat6", label: "Danh mục 2" },
+  //   { value: "cat7", label: "Danh mục 2" },
+  // ];
 
   const [isEdit, setIsEdit] = useState(false);
+  // const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // rows: danh sách account đã parse theo định dạng bạn chọn ở Cách 4
+  const handleImportAccounts = async (rows: any[]) => {
+    try {
+      setLoading(true);
+
+      // TODO: gọi API backend của bạn để import
+      // await axios.post("/api/accounts/import", { rows });
+
+      message.success(`Đã nhập ${rows.length} tài khoản`);
+      setIsModalOpen(false);
+    } catch (err) {
+      message.error("Nhập tài khoản thất bại");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDelete = () => {
     // Call API to delete category
@@ -265,11 +286,16 @@ const AccountPage: React.FC = () => {
         onSubmit={handleAddCategory}
       />
 
-      <ModalAddCustomer
-        visible={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        onSubmit={handleAddCustomer}
-        categories={categoryData}
+      <ImportAccountsModal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onPickGemLogin={() => message.info("Chọn tài khoản từ GemLogin")}
+        onPickGpmLogin={() => message.info("Chọn tài khoản từ GPM-Login")}
+        onGenerateQR={(proxy) =>
+          message.info(`Tạo QR đăng nhập với proxy: ${proxy ?? "(không có)"}`)
+        }
+        onImportAccounts={handleImportAccounts} // 🔑 dùng prop này thay cho onSubmit
+        loading={loading}
       />
 
       <ConfirmDeleteCate
