@@ -203,7 +203,8 @@ export default function CustomTableV2<T extends object>({
         <Dropdown
           menu={getContextMenu(actualRecord, selectedRows, dataSource)}
           trigger={["contextMenu"]}
-          getPopupContainer={(node) => node}
+          getPopupContainer={() => document.body}
+          overlayStyle={{ zIndex: 10000 }}
         >
           <tr
             ref={ref}
