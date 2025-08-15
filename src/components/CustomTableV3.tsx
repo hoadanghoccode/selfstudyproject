@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useMemo, useState } from "react";
-import { Table, Pagination, Select, Typography } from "antd";
+import { Table, Pagination, Select, Typography, Dropdown } from "antd";
 import type { TableProps } from "antd/es/table";
 import { useI18n } from "../i18n/I18nContext";
 
@@ -26,20 +26,25 @@ export type CustomTableProps<T extends object> = {
   handleSortClick?: (p: { field?: string; order: Order }) => void;
   loading?: boolean;
 
-  /** Ẩn/hiện cột (điều khiển từ ngoài) */
   hiddenColumnKeys?: string[];
 
-  /** Selection (khôi phục) */
-  selectable?: boolean; // bật checkbox (mặc định: true)
-  selectedRowKeys?: React.Key[]; // controlled
+  selectable?: boolean;
+  selectedRowKeys?: React.Key[];
   onSelectedRowKeysChange?: (keys: React.Key[], rows: T[]) => void;
-  onRowClickSelect?: boolean; // click cả dòng để toggle (mặc định: true)
-  preserveSelectedRowKeys?: boolean; // giữ chọn khi đổi trang (mặc định: true)
+  onRowClickSelect?: boolean;
+  preserveSelectedRowKeys?: boolean;
   rowKey?: string | ((record: T) => React.Key);
   pageSizeOptions?: number[];
+
+  /** Menu chuột phải */
+  contextMenuItems?: (
+    record: T | null,
+    selectedRecords: T[],
+    allData: T[]
+  ) => { label: string; key: string; onClick?: () => void; children?: any[] }[];
 };
 
-export default function CustomTable<T extends object>({
+export default function CustomTableV3<T extends object>({
   columns,
   dataSource,
   count,
@@ -57,8 +62,10 @@ export default function CustomTable<T extends object>({
   preserveSelectedRowKeys = true,
   rowKey,
   pageSizeOptions = [10, 20, 50, 100, 1000],
+  contextMenuItems,
 }: CustomTableProps<T>) {
   const { t } = useI18n();
+
   // ===== rowKey =====
   const getRowKey =
     typeof rowKey === "function"
@@ -96,7 +103,7 @@ export default function CustomTable<T extends object>({
     ];
   }, [columns, hiddenColumnKeys, page, rowsPerPage]);
 
-  // ===== sort -> bắn ra ngoài =====
+  // ===== sort =====
   const onChange: TableProps<T>["onChange"] = (_p, _f, sorter) => {
     const s = Array.isArray(sorter) ? sorter[0] : sorter;
     const field =
@@ -106,7 +113,7 @@ export default function CustomTable<T extends object>({
     handleSortClick?.({ field, order });
   };
 
-  // ===== selection: controlled/uncontrolled =====
+  // ===== selection =====
   const [internalKeys, setInternalKeys] = useState<React.Key[]>([]);
   const selectedKeys = selectedRowKeys ?? internalKeys;
 
@@ -123,37 +130,58 @@ export default function CustomTable<T extends object>({
       }
     : undefined;
 
-  // click cả dòng để toggle chọn (trừ khi click vào phần tử tương tác)
+  // ===== Context Menu state =====
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
+
+  const showContextMenu = (e: React.MouseEvent, record: T | null) => {
+    e.preventDefault();
+    if (!contextMenuItems) return;
+
+    const selectedRecords = dataSource.filter((r) =>
+      selectedKeys.includes(getRowKey(r))
+    );
+    const items = contextMenuItems(record, selectedRecords, dataSource);
+
+    setMenuItems(items || []);
+    setMenuPosition({ x: e.clientX, y: e.clientY });
+  };
+
   const onRow: TableProps<T>["onRow"] = (record) => ({
     onClick: (e) => {
       if (!selectable || !onRowClickSelect) return;
       const target = e.target as HTMLElement;
-      // bỏ qua click vào phần tử tương tác
       if (
         target.closest(
           "a,button,input,textarea,select,[role='button'],.ant-checkbox"
         )
       )
         return;
-
       const key = getRowKey(record);
       const exists = selectedKeys.includes(key);
       const next = exists
         ? selectedKeys.filter((k) => k !== key)
         : [...selectedKeys, key];
-
-      // lấy rows tương ứng (ít nhất row hiện tại)
       const rows = dataSource.filter((r) => next.includes(getRowKey(r))) as T[];
       setKeys(next, rows);
     },
+    onContextMenu: (e) => showContextMenu(e, record),
   });
 
-  // ===== footer range =====
   const from = dataSource.length ? (page - 1) * rowsPerPage + 1 : 0;
   const to = (page - 1) * rowsPerPage + dataSource.length;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: 12 }}
+      onContextMenu={(e) => {
+        if ((e.target as HTMLElement).closest(".ant-table-tbody tr")) return;
+        showContextMenu(e, null);
+      }}
+    >
       <Table<T>
         size="small"
         rowKey={getRowKey}
@@ -200,6 +228,26 @@ export default function CustomTable<T extends object>({
           showSizeChanger={false}
         />
       </div>
+
+      {menuPosition && menuItems.length > 0 && (
+        <Dropdown
+          open
+          menu={{ items: menuItems }}
+          trigger={["contextMenu"]}
+          onOpenChange={(open) => {
+            if (!open) setMenuPosition(null);
+          }}
+        >
+          <div
+            style={{
+              position: "fixed",
+              top: menuPosition.y,
+              left: menuPosition.x,
+              zIndex: 9999,
+            }}
+          />
+        </Dropdown>
+      )}
     </div>
   );
 }

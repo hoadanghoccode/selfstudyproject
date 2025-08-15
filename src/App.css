@@ -66,22 +66,6 @@
   font-weight: 600;
 }
 
-/* vạch dọc ở mục con */
-.sider-menu .ant-menu-sub .ant-menu-item {
-  position: relative;
-  padding-left: 28px !important; /* đẩy chữ ra xa vạch */
-}
-.sider-menu .ant-menu-sub .ant-menu-item::before {
-  content: "";
-  position: absolute;
-  left: 12px;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: #000; /* xanh nhạt */
-  border-radius: 2px;
-}
-
 .version-card-wrap {
   position: relative;
   margin: 16px;
@@ -160,4 +144,43 @@
   /* nút đầu có “viền” trắng giống ảnh */
   border: 3px solid #e6f4ff !important;
   background: #fff !important;
+}
+
+/* Làm viền bảng rõ ràng hơn, kẻ vạch giữa các cột/dòng */
+.custom-table-strong-borders .ant-table {
+  border: 1px solid #bfbfbf !important;
+}
+.custom-table-strong-borders .ant-table-container table > thead > tr > th,
+.custom-table-strong-borders .ant-table-container table > tbody > tr > td {
+  border-right: 1px solid #c8c8c8 !important; /* viền giữa cột đậm hơn */
+}
+.custom-table-strong-borders .ant-table-container table > thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  border-bottom: 1px solid #bfbfbf !important; /* chân header đậm hơn */
+}
+.custom-table-strong-borders .ant-table-tbody > tr > td {
+  border-bottom: 1px solid #cfd3d8 !important; /* viền giữa dòng đậm hơn */
+}
+.custom-table-strong-borders .ant-table-container table > thead > tr > th:last-child,
+.custom-table-strong-borders .ant-table-container table > tbody > tr > td:last-child {
+  border-right: none; /* bỏ viền phải cuối hàng */
+}
+
+/* Tăng kích thước checkbox trong bảng */
+.custom-table-strong-borders .ant-checkbox-inner {
+  width: 24px;
+  height: 24px;
+}
+/* Căn giữa và cân đối dấu tick khi checkbox được chọn */
+.custom-table-strong-borders .ant-checkbox-checked .ant-checkbox-inner::after {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px; /* hẹp hơn, cao hơn để ra hình dấu tick */
+  height: 10px;
+  border: 2px solid #fff;
+  border-top: 0;
+  border-left: 0;
+  transform: translate(-50%, -60%) rotate(45deg);
 }

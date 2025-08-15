@@ -80,7 +80,6 @@ const AccountPage: React.FC = () => {
   // ];
 
   const [isEdit, setIsEdit] = useState(false);
-  // const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // rows: danh sách account đã parse theo định dạng bạn chọn ở Cách 4
@@ -129,7 +128,16 @@ const AccountPage: React.FC = () => {
           {/* LEFT: Thống kê + Quản lý danh mục */}
           <Col xs={24} md={6}>
             <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              <Card size="small">
+              <Card
+                style={{
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  background: "#fff",
+                }}
+                className="custom-table-strong-borders"
+                size="small"
+              >
                 <Row gutter={12}>
                   <Col span={8}>
                     <Statistic
@@ -154,7 +162,17 @@ const AccountPage: React.FC = () => {
                 </Row>
               </Card>
 
-              <Card size="small" title={t("account.management.category")}>
+              <Card
+                style={{
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                  borderRadius: 8,
+                  overflow: "hidden",
+                  background: "#fff",
+                }}
+                className="custom-table-strong-borders"
+                size="small"
+                title={t("account.management.category")}
+              >
                 <div
                   style={{ display: "flex", justifyContent: "space-between" }}
                 >
@@ -272,7 +290,16 @@ const AccountPage: React.FC = () => {
 
           {/* RIGHT: Table + toolbar (đã có trong AccountsTablePage) */}
           <Col xs={24} md={18}>
-            <Card size="small">
+            <Card
+              style={{
+                boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                borderRadius: 8,
+                overflow: "hidden",
+                background: "#fff",
+              }}
+              className="custom-table-strong-borders"
+              size="small"
+            >
               <AccountsTablePage setData={setData} />
             </Card>
           </Col>

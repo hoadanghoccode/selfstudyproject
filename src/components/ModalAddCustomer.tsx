@@ -16,16 +16,26 @@ import { Formik } from "formik";
 import * as Yup from "yup";
 import QrModal from "./QrModal";
 import AccountModal from "./AccountModal";
+import AccountGpmModal from "./AccountGpmModal";
 
 const { Title, Text } = Typography;
 
-type FormatField = "username" | "password" | "proxy" | "note" | "empty";
+type FormatField =
+  | "Phone"
+  | "Password"
+  | "Proxy"
+  | "Cookie"
+  | "Imei"
+  | "Useragent"
+  | "Empty";
 
 export interface ParsedAccount {
-  username?: string;
+  phone?: string;
   password?: string;
   proxy?: string;
-  note?: string;
+  cookie?: string;
+  imei?: string;
+  useragent?: string;
 }
 
 interface ImportAccountsModalProps {
@@ -65,7 +75,7 @@ const buildSchema = () =>
           const ctx = this.options.context as
             | { format: FormatField[] }
             | undefined;
-          const format = (ctx?.format || []).filter((f) => f !== "empty");
+          const format = (ctx?.format || []).filter((f) => f !== "Empty");
           if (!value) return true;
 
           const lines = value
@@ -97,7 +107,7 @@ const buildSchema = () =>
                 });
               }
 
-              if (field === "proxy") {
+              if (field === "Proxy") {
                 if (!reProxy.test(val)) {
                   return this.createError({
                     path: "list",
@@ -120,20 +130,22 @@ const buildSchema = () =>
   });
 
 const DEFAULT_FORMAT: FormatField[] = [
-  "username",
-  "password",
-  "proxy",
-  "empty",
-  "empty",
-  "empty",
+  "Phone",
+  "Password",
+  "Proxy",
+  "Cookie",
+  "Imei",
+  "Useragent",
 ];
 
 const fieldOptions = [
-  { value: "username", label: "Tên đăng nhập" },
-  { value: "password", label: "Mật khẩu" },
-  { value: "proxy", label: "Proxy" },
-  { value: "note", label: "Ghi chú" },
-  { value: "empty", label: "(Bỏ trống)" },
+  { value: "Phone", label: "Phone" },
+  { value: "Password", label: "Password" },
+  { value: "Proxy", label: "Proxy" },
+  { value: "Cookie", label: "Cookie" },
+  { value: "Imei", label: "Imei" },
+  { value: "Useragent", label: "Useragent" },
+  { value: "Empty", label: "(Bỏ trống)" },
 ];
 
 const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
@@ -141,7 +153,7 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
   onClose,
   onPickGemLogin,
   onPickGpmLogin,
-  // onGenerateQR,
+  onGenerateQR,
   onImportAccounts,
   loading = false,
 }) => {
@@ -149,23 +161,27 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
 
   const exampleByFormat = useMemo(() => {
     const cols = format
-      .filter((f) => f !== "empty")
+      .filter((f) => f !== "Empty")
       .map((f) => {
         switch (f) {
-          case "username":
-            return "username";
-          case "password":
-            return "password";
-          case "proxy":
+          case "Phone":
+            return "0123456789";
+          case "Password":
+            return "password123";
+          case "Proxy":
             return "123.45.67.89:8080 hoặc 123.45.67.89:8080:user:pass";
-          case "note":
-            return "ghi_chu";
+          case "Cookie":
+            return "cookie_data";
+          case "Imei":
+            return "123456789012345";
+          case "Useragent":
+            return "Mozilla/5.0...";
           default:
             return "";
         }
       })
       .filter(Boolean);
-    return cols.join("|") || "username|password|proxy";
+    return cols.join("|") || "Phone|Password|Proxy|Cookie|Imei|Useragent";
   }, [format]);
 
   const countLines = (text?: string) =>
@@ -173,9 +189,9 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
 
   /** Parse danh sách theo format đã chọn (sau khi validate pass) */
   const parseByFormat = (text: string): ParsedAccount[] => {
-    const mapIdxToField: Record<number, Exclude<FormatField, "empty">> = {};
+    const mapIdxToField: Record<number, Exclude<FormatField, "Empty">> = {};
     format.forEach((f, i) => {
-      if (f !== "empty") mapIdxToField[i] = f as any;
+      if (f !== "Empty") mapIdxToField[i] = f as any;
     });
     return text
       .split(/\r?\n/)
@@ -188,10 +204,12 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
           const idx = Number(k);
           const key = mapIdxToField[idx];
           const val = (parts[idx] ?? "").trim();
-          if (key === "username") obj.username = val;
-          if (key === "password") obj.password = val;
-          if (key === "proxy") obj.proxy = val;
-          if (key === "note") obj.note = val;
+          if (key === "Phone") obj.phone = val;
+          if (key === "Password") obj.password = val;
+          if (key === "Proxy") obj.proxy = val;
+          if (key === "Cookie") obj.cookie = val;
+          if (key === "Imei") obj.imei = val;
+          if (key === "Useragent") obj.useragent = val;
         });
         return obj;
       });
@@ -199,6 +217,7 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
 
   const [qrOpen, setQrOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountGpmModalOpen, setAccountGpmModalOpen] = useState(false);
 
   return (
     <>
@@ -282,11 +301,10 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
                       <Button
                         block
                         onClick={async () => {
-                          // đánh dấu để hiện lỗi nếu có
                           await setFieldTouched("proxy", true, true);
-                          // if (!errors.proxy) {
-                          //   onGenerateQR?.(values.proxy?.trim() || undefined);
-                          // }
+                          if (onGenerateQR) {
+                            onGenerateQR(values.proxy || undefined);
+                          }
                           setQrOpen(true);
                         }}
                         disabled={loading}
@@ -336,7 +354,10 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
                       <div style={{ marginTop: 12 }}>
                         <Button
                           block
-                          onClick={onPickGpmLogin}
+                          onClick={() => {
+                            onPickGpmLogin?.();
+                            setAccountGpmModalOpen(true);
+                          }}
                           disabled={loading}
                         >
                           Chọn tài khoản
@@ -390,8 +411,8 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
                   {Array.from({ length: 6 }).map((_, i) => (
                     <Col key={i}>
                       <Select
-                        value={format[i] ?? "empty"}
-                        style={{ width: 160 }}
+                        value={format[i] ?? "Empty"}
+                        style={{ width: 100 }}
                         onChange={(v) => {
                           const cp = [...format];
                           cp[i] = v as FormatField;
@@ -428,6 +449,10 @@ const ImportAccountsModal: React.FC<ImportAccountsModalProps> = ({
       <AccountModal
         open={accountModalOpen}
         onClose={() => setAccountModalOpen(false)}
+      />
+      <AccountGpmModal
+        open={accountGpmModalOpen}
+        onClose={() => setAccountGpmModalOpen(false)}
       />
     </>
   );
