@@ -19,11 +19,10 @@ import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import ConfirmDeleteCate from "../components/ConfirmDeleteCate";
 import ModalAddCategory from "../components/ModalAddCategory";
-import ModalAddCustomer from "../components/ModalAddCustomer";
+import ImportAccountsModal from "../components/ModalAddCustomer";
+import { useI18n } from "../i18n/I18nContext";
 import { showNotification } from "../utils/notify";
 import AccountsTablePage from "./AccountsTablePage"; // 🔹 table bên phải bạn đã có
-import { useI18n } from "../i18n/I18nContext";
-import ImportAccountsModal from "../components/ModalAddCustomer";
 
 const AccountPage: React.FC = () => {
   // demo data danh mục (thay bằng API thực tế)
@@ -64,12 +63,12 @@ const AccountPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleAddCustomer = async (values: any) => {
-    // Call API to add category
-    console.log("Adding category:", values);
-    setIsModalOpen(false);
-    showNotification(201, "Tạo danh mục thành công");
-  };
+  // const handleAddCustomer = async (values: any) => {
+  //   // Call API to add category
+  //   console.log("Adding category:", values);
+  //   setIsModalOpen(false);
+  //   showNotification(201, "Tạo danh mục thành công");
+  // };
 
   // const categoryData: any = [
   //   { value: "cat1", label: "Danh mục 1" },

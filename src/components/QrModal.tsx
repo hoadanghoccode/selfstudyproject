@@ -1,10 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Modal, Typography, Space, Button, Divider, Tag, message } from "antd";
-import {
-  CopyOutlined,
-  ReloadOutlined,
-  DownloadOutlined,
-} from "@ant-design/icons";
+import { DownloadOutlined } from "@ant-design/icons";
+import { Button, Divider, Modal, Space, Typography, message } from "antd";
+import React, { useEffect, useRef, useState } from "react";
 // AntD v5 có QRCode; nếu dự án bạn dùng v4 thì hãy dùng ảnh (qrImage) thay thế.
 import { QRCode } from "antd";
 
@@ -42,11 +38,11 @@ export interface QrModalProps {
   title?: string;
 }
 
-const formatMMSS = (s: number) => {
-  const mm = String(Math.floor(s / 60)).padStart(2, "0");
-  const ss = String(s % 60).padStart(2, "0");
-  return `${mm}:${ss}`;
-};
+// const formatMMSS = (s: number) => {
+//   const mm = String(Math.floor(s / 60)).padStart(2, "0");
+//   const ss = String(s % 60).padStart(2, "0");
+//   return `${mm}:${ss}`;
+// };
 
 const QrModal: React.FC<QrModalProps> = ({
   open,
@@ -54,7 +50,7 @@ const QrModal: React.FC<QrModalProps> = ({
   qrText,
   qrImage = QrFallbackImage,
   expiresIn = 120,
-  onRefresh,
+  // onRefresh,
   onSuccess,
   proxyHint,
   loading = false,
@@ -109,28 +105,28 @@ const QrModal: React.FC<QrModalProps> = ({
     }
   };
 
-  const canCopy = useMemo(() => Boolean(qrText), [qrText]);
+  // const canCopy = useMemo(() => Boolean(qrText), [qrText]);
 
-  const handleCopy = async () => {
-    if (!qrText) return;
-    try {
-      await navigator.clipboard.writeText(qrText);
-      message.success("Đã sao chép nội dung QR");
-    } catch {
-      message.error("Không thể sao chép");
-    }
-  };
+  // const handleCopy = async () => {
+  //   if (!qrText) return;
+  //   try {
+  //     await navigator.clipboard.writeText(qrText);
+  //     message.success("Đã sao chép nội dung QR");
+  //   } catch {
+  //     message.error("Không thể sao chép");
+  //   }
+  // };
 
-  const handleRefresh = async () => {
-    if (!onRefresh) {
-      // Không có API làm mới, chỉ reset đếm ngược để demo
-      setRemain(expiresIn);
-      message.info("Đã làm mới bộ đếm (demo)");
-      return;
-    }
-    await onRefresh();
-    setRemain(expiresIn);
-  };
+  // const handleRefresh = async () => {
+  //   if (!onRefresh) {
+  //     // Không có API làm mới, chỉ reset đếm ngược để demo
+  //     setRemain(expiresIn);
+  //     message.info("Đã làm mới bộ đếm (demo)");
+  //     return;
+  //   }
+  //   await onRefresh();
+  //   setRemain(expiresIn);
+  // };
 
   return (
     <Modal
