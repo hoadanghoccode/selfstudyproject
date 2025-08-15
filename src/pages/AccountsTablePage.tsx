@@ -313,7 +313,7 @@ export default function AccountsTablePage({ setData }: Props) {
         rowKey="id"
         // === Context menu ===
         contextMenuEnabled
-        getContextMenu={(record, selectedRows, allData) => {
+        getContextMenu={(record, selectedRows, highlightedRows, allData) => {
           // Validate record
           if (!record || !record.id) {
             // Khi không có record (vd: danh sách trống), vẫn hiển thị menu để phục hồi
@@ -379,7 +379,34 @@ export default function AccountsTablePage({ setData }: Props) {
                     key: "selectHighlighted",
                     label: "Bôi đen",
                     icon: <HighlightOutlined />,
-                    onClick: () => console.log("Chọn bôi đen"),
+                    onClick: () => {
+                      const targets =
+                        highlightedRows && highlightedRows.length > 0
+                          ? highlightedRows
+                          : [record];
+                      setSelectedRowKeys((prev) => [
+                        ...new Set([
+                          ...prev,
+                          ...targets.map((t: any) => t?.id),
+                        ]),
+                      ]);
+                    },
+                  },
+                  {
+                    key: "unselectHighlighted",
+                    label: "Bỏ chọn (bôi đen)",
+                    icon: <CloseOutlined />,
+                    onClick: () => {
+                      const targets =
+                        highlightedRows && highlightedRows.length > 0
+                          ? highlightedRows
+                          : [record];
+                      setSelectedRowKeys((prev) =>
+                        prev.filter(
+                          (k) => !targets.map((t: any) => t?.id).includes(k)
+                        )
+                      );
+                    },
                   },
                   {
                     key: "selectByStatus",

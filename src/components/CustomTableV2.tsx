@@ -1,8 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useMemo, useState } from "react";
-import { Table, Pagination, Select, Typography, Dropdown } from "antd";
+import { Dropdown, Table, Typography } from "antd";
 import type { TableProps } from "antd/es/table";
-import { useI18n } from "../i18n/I18nContext";
+import React, { useMemo, useState } from "react";
 
 type Order = "ascend" | "descend" | null;
 
@@ -39,8 +37,9 @@ export type CustomTableProps<T extends object> = {
   contextMenuEnabled?: boolean;
   /** Hàm trả menu context cho từng row */
   getContextMenu?: (
-    record: T,
+    record: T | undefined,
     selectedRows: T[],
+    highlightedRows: T[],
     allData: T[]
   ) => Parameters<typeof Dropdown>[0]["menu"];
   /** Hiển thị tất cả, ẩn phân trang và dùng footer đơn giản */
@@ -55,8 +54,6 @@ export default function CustomTableV2<T extends object>({
   count,
   rowsPerPage,
   page,
-  setPage,
-  setRowsPerPage,
   handleSortClick,
   loading,
   hiddenColumnKeys = [],
@@ -66,13 +63,11 @@ export default function CustomTableV2<T extends object>({
   onRowClickSelect = true,
   preserveSelectedRowKeys = true,
   rowKey,
-  pageSizeOptions = [10, 20, 50, 100, 1000],
   contextMenuEnabled = false,
   getContextMenu,
   showAllRows = false,
   highlightedCount,
 }: CustomTableProps<T>) {
-  const { t } = useI18n();
   // ===== rowKey =====
   const getRowKey =
     typeof rowKey === "function"
@@ -137,10 +132,47 @@ export default function CustomTableV2<T extends object>({
       }
     : undefined;
 
-  // click cả dòng để toggle chọn
+  // drag highlight + click cả dòng để toggle chọn
+  const [highlightedKeys, setHighlightedKeys] = useState<React.Key[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startIndex, setStartIndex] = useState<number | null>(null);
+
+  const getIndexByKey = (key: React.Key) =>
+    dataSource.findIndex((r) => getRowKey(r as any) === key);
+  const getKeyByIndex = (idx: number) => getRowKey(dataSource[idx] as any);
+
   const onRow: TableProps<T>["onRow"] = (record) => ({
+    onMouseDown: (e) => {
+      if (!selectable) return;
+      // Chỉ khởi tạo kéo bôi đen với chuột trái
+      if ((e as React.MouseEvent).button !== 0) return;
+      const target = e.target as HTMLElement;
+      if (
+        target.closest(
+          "a,button,input,textarea,select,[role='button'],.ant-checkbox"
+        )
+      )
+        return;
+      const startKey = getRowKey(record);
+      setIsDragging(true);
+      setStartIndex(getIndexByKey(startKey));
+      setHighlightedKeys([startKey]);
+      e.preventDefault();
+    },
+    onMouseEnter: () => {
+      if (!isDragging || startIndex === null) return;
+      const endIndex = getIndexByKey(getRowKey(record));
+      if (endIndex < 0) return;
+      const from = Math.min(startIndex, endIndex);
+      const to = Math.max(startIndex, endIndex);
+      const range: React.Key[] = [];
+      for (let i = from; i <= to; i += 1) range.push(getKeyByIndex(i));
+      setHighlightedKeys(range);
+    },
+    onMouseUp: () => setIsDragging(false),
     onClick: (e) => {
       if (!selectable || !onRowClickSelect) return;
+      if (isDragging) return; // tránh toggle khi đang kéo chọn
       const target = e.target as HTMLElement;
       if (
         target.closest(
@@ -160,29 +192,18 @@ export default function CustomTableV2<T extends object>({
     },
   });
 
-  // ===== footer range =====
-  const from = dataSource.length ? (page - 1) * rowsPerPage + 1 : 0;
-  const to = (page - 1) * rowsPerPage + dataSource.length;
-
   // ===== Custom row cho context menu =====
   const ContextMenuRow = React.forwardRef<HTMLTableRowElement, any>(
     (props, ref) => {
       const { record, ...rest } = props;
-      
-      console.log("=== ContextMenuRow Debug ===");
-      console.log("Props:", props);
-      console.log("Record from props:", record);
-      console.log("Record type:", typeof record);
-      console.log("Record keys:", record ? Object.keys(record) : "record is null/undefined");
-      console.log("========================");
-      
       // Nếu record từ props không có id, thử lấy từ dataSource
       let actualRecord = record;
       if (!record || !record.id) {
         // Thử lấy record từ dataSource dựa trên index
-        const rowIndex = props['data-row-key'] ? 
-          dataSource.findIndex(r => getRowKey(r) === props['data-row-key']) : -1;
-        
+        const rowIndex = props["data-row-key"]
+          ? dataSource.findIndex((r) => getRowKey(r) === props["data-row-key"])
+          : -1;
+
         if (rowIndex >= 0) {
           actualRecord = dataSource[rowIndex];
           console.log("Found record from dataSource:", actualRecord);
@@ -190,10 +211,15 @@ export default function CustomTableV2<T extends object>({
           console.error("Could not find record in dataSource");
         }
       }
-      
-      const selectedRows = dataSource.filter((r) =>
-        selectedKeys.includes(getRowKey(r))
+
+      const highlightedRows = dataSource.filter((r) =>
+        highlightedKeys.includes(getRowKey(r))
       );
+      // Ưu tiên truyền vùng bôi đen vào menu; nếu không có thì fallback selected
+      const selectedRows =
+        highlightedRows.length > 0
+          ? highlightedRows
+          : dataSource.filter((r) => selectedKeys.includes(getRowKey(r)));
 
       if (!contextMenuEnabled || !getContextMenu) {
         return <tr ref={ref} {...rest} />;
@@ -201,7 +227,12 @@ export default function CustomTableV2<T extends object>({
 
       return (
         <Dropdown
-          menu={getContextMenu(actualRecord, selectedRows, dataSource)}
+          menu={getContextMenu(
+            actualRecord,
+            selectedRows,
+            highlightedRows,
+            dataSource
+          )}
           trigger={["contextMenu"]}
           getPopupContainer={() => document.body}
           overlayStyle={{ zIndex: 10000 }}
@@ -245,54 +276,31 @@ export default function CustomTableV2<T extends object>({
           tableLayout="fixed"
           rowSelection={rowSelection}
           onRow={onRow}
+          rowClassName={(rec) =>
+            highlightedKeys.includes(getRowKey(rec)) ? "row-highlighted" : ""
+          }
           components={components}
           bordered
         />
       </div>
 
-      {showAllRows ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, fontWeight:'bold' }}>
-          <Typography.Text>
-            Bôi đen: <span style={{  color:'red'  }}>{
-              highlightedCount ?? selectedKeys.length
-            }</span>
-            <span style={{ marginLeft: 12 }}>Tất cả: </span>
-            <span style={{ color: "#1677ff" }}>{count}</span>
-          </Typography.Text>
-        </div>
-      ) : (
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Typography.Text>
-            {t("account.table.range", { from, to, count })}
-          </Typography.Text>
-
-          <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
-            <Select
-              value={rowsPerPage}
-              onChange={(ps) => {
-                setPage(1);
-                setRowsPerPage(ps);
-              }}
-              options={pageSizeOptions.map((n) => ({
-                value: n,
-                label: String(n),
-              }))}
-              style={{ width: 100 }}
-            />
-          </div>
-
-          <Pagination
-            current={page}
-            pageSize={rowsPerPage}
-            total={count}
-            onChange={(p, ps) => {
-              if (ps !== rowsPerPage) setRowsPerPage(ps);
-              setPage(p);
-            }}
-            showSizeChanger={false}
-          />
-        </div>
-      )}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          fontWeight: "bold",
+        }}
+      >
+        <Typography.Text>
+          Bôi đen:{" "}
+          <span style={{ color: "red" }}>
+            {highlightedCount ?? highlightedKeys.length}
+          </span>
+          <span style={{ marginLeft: 12 }}>Tất cả: </span>
+          <span style={{ color: "#1677ff" }}>{count}</span>
+        </Typography.Text>
+      </div>
     </div>
   );
 
