@@ -184,3 +184,8 @@
   border-left: 0;
   transform: translate(-50%, -60%) rotate(45deg);
 }
+
+/* Highlight các dòng đang được bôi đen (kéo chuột) */
+.row-highlighted td {
+  background: #e6f4ff !important;
+}
