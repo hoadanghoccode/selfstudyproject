@@ -11,6 +11,7 @@ export const content: Account[] = [
     createdBy: "Tuấn Hải",
     gender: "Nam",
     proxy: "—",
+    avatar: "https://i.pravatar.cc/150?img=1",
   },
   {
     id: 2,
@@ -22,6 +23,7 @@ export const content: Account[] = [
     createdBy: "Minh Anh",
     gender: "Nữ",
     proxy: "HN-1",
+    avatar: "https://i.pravatar.cc/150?img=2",
   },
   {
     id: 3,
@@ -33,6 +35,7 @@ export const content: Account[] = [
     createdBy: "Quốc Bảo",
     gender: "Nam",
     proxy: "HCM-2",
+    avatar: "https://i.pravatar.cc/150?img=3",
   },
   {
     id: 4,
@@ -44,6 +47,7 @@ export const content: Account[] = [
     createdBy: "Bảo Trân",
     gender: "Nữ",
     proxy: "DN-3",
+    avatar: "https://i.pravatar.cc/150?img=4",
   },
   {
     id: 5,
@@ -55,6 +59,7 @@ export const content: Account[] = [
     createdBy: "Thái Dương",
     gender: "Nam",
     proxy: "—",
+    avatar: "https://i.pravatar.cc/150?img=5",
   },
   {
     id: 6,
@@ -66,6 +71,7 @@ export const content: Account[] = [
     createdBy: "Khánh Linh",
     gender: "Nữ",
     proxy: "HN-1",
+    avatar: "https://i.pravatar.cc/150?img=6",
   },
   {
     id: 7,
@@ -77,6 +83,7 @@ export const content: Account[] = [
     createdBy: "Hữu Phúc",
     gender: "Nam",
     proxy: "HCM-2",
+    avatar: "https://i.pravatar.cc/150?img=7",
   },
   {
     id: 8,
@@ -88,6 +95,7 @@ export const content: Account[] = [
     createdBy: "Thuỳ Dương",
     gender: "Nữ",
     proxy: "DN-3",
+    avatar: "https://i.pravatar.cc/150?img=8",
   },
   {
     id: 9,
@@ -99,6 +107,7 @@ export const content: Account[] = [
     createdBy: "Anh Quân",
     gender: "Nam",
     proxy: "—",
+    avatar: "https://i.pravatar.cc/150?img=9",
   },
   {
     id: 10,
@@ -110,5 +119,6 @@ export const content: Account[] = [
     createdBy: "Diệu My",
     gender: "Nữ",
     proxy: "HN-1",
+    avatar: "https://i.pravatar.cc/150?img=10",
   },
 ];

@@ -47,6 +47,7 @@ const translations: Translations = {
     "account.management.selected": "Đã chọn",
     "account.table.phone": "Số điện thoại",
     "account.table.password": "Mật khẩu",
+    "account.table.avatar": "Avatar",
     "account.table.category": "Danh mục",
     "account.table.cookie": "Cookie",
     "account.table.birthday": "Ngày sinh",
@@ -74,7 +75,7 @@ const translations: Translations = {
     "menu.friend.add": "Add friends",
     "menu.friend.status": "Friend status",
     "menu.friend.history": "Friend history",
-
+    "account.table.avatar": "Avatar",
     "menu.group.interaction": "Group interaction",
     "menu.group.linkInteraction": "Interact with group link",
     "menu.proxy": "Proxy management",

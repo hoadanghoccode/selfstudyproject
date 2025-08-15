@@ -41,6 +41,7 @@ export type Account = {
   createdBy?: string;
   gender?: string;
   proxy?: string;
+  avatar?: string;
 };
 
 interface Props {
@@ -152,6 +153,32 @@ export default function AccountsTablePage({ setData }: Props) {
       width: 120,
     },
     {
+      title: t("account.table.avatar"),
+      dataIndex: "avatar",
+      key: "avatar",
+      width: 120,
+      render: (avatarUrl: string) => {
+        const defaultAvatar = "https://via.placeholder.com/40x40/1677ff/ffffff?text=U";
+        
+        return (
+          <img
+            src={avatarUrl || defaultAvatar}
+            alt="Avatar"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              objectFit: "cover",
+            }}
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.src = defaultAvatar;
+            }}
+          />
+        );
+      },
+    },
+    {
       title: t("account.table.category"),
       dataIndex: "category",
       key: "category",
@@ -243,19 +270,7 @@ export default function AccountsTablePage({ setData }: Props) {
         </span>
 
         <div style={{ marginLeft: "auto" }} />
-        {/* nút khác của riêng trang này */}
-        <Space>
-          <Button
-            icon={<ChromeOutlined />}
-            onClick={() => {
-              window.close();
-            }}
-          >
-            {/* Đóng trình duyệt    */}
-            {t("account.management.closeBrowser")}
-          </Button>
-        </Space>
-
+        
         <Space>
           <Button icon={<DeleteOutlined />}>
             {t("account.management.trash")}
@@ -301,8 +316,25 @@ export default function AccountsTablePage({ setData }: Props) {
         getContextMenu={(record, selectedRows, allData) => {
           // Validate record
           if (!record || !record.id) {
-            console.error("Invalid record:", record);
-            return { items: [] };
+            // Khi không có record (vd: danh sách trống), vẫn hiển thị menu để phục hồi
+            return {
+              items: [
+                {
+                  key: "showAll",
+                  label: "Hiện tất cả",
+                  icon: <EyeOutlined />,
+                  disabled: hiddenItemIds.length === 0,
+                  onClick: () => showAllItems(),
+                },
+                { type: "divider" as const },
+                {
+                  key: "reloadList",
+                  label: "Tải lại danh sách",
+                  icon: <ReloadOutlined />,
+                  onClick: () => window.location.reload(),
+                },
+              ],
+            };
           }
 
           // Kiểm tra xem record hiện tại có trong selectedRows không (so sánh theo ID)

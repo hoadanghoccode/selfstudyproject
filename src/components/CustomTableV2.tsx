@@ -221,7 +221,7 @@ export default function CustomTableV2<T extends object>({
     ? { body: { row: ContextMenuRow } }
     : undefined;
 
-  return (
+  const content = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div
         style={{
@@ -295,4 +295,29 @@ export default function CustomTableV2<T extends object>({
       )}
     </div>
   );
+
+  // Khi không có data, vẫn cho phép click chuột phải trên toàn bộ khu vực bảng
+  if (contextMenuEnabled && getContextMenu && dataSource.length === 0) {
+    return (
+      <Dropdown
+        menu={getContextMenu({} as T, [], dataSource)}
+        trigger={["contextMenu"]}
+        getPopupContainer={() => document.body}
+        overlayStyle={{ zIndex: 10000 }}
+      >
+        <div 
+          onContextMenu={(e) => e.preventDefault()}
+          style={{ 
+            minHeight: 200, 
+            cursor: "context-menu",
+            width: "100%"
+          }}
+        >
+          {content}
+        </div>
+      </Dropdown>
+    );
+  }
+
+  return content;
 }
