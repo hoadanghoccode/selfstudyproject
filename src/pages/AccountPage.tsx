@@ -16,7 +16,7 @@ const AccountPage: React.FC = () => {
     { key: "realEstate", name: "Bất động sản", count: 1 },
     { key: "commercial", name: "Thương mại", count: 1 },
   ]);
-  const [checked, setChecked] = useState<string[]>(["all"]);
+  const [checked, setChecked] = useState<string[]>([]);
   const [data, setData] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   //   console.log("data here", data);

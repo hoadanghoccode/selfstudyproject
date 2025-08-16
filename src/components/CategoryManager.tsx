@@ -74,7 +74,6 @@ function CategoryManager({
           </div>
         )}
       />
-
       <Button type="primary" icon={<PlusOutlined />} onClick={onAdd}>
         {t("account.management.add")}
       </Button>
