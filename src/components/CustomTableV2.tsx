@@ -2,26 +2,23 @@ import { Dropdown, Table, Typography } from "antd";
 import type { TableProps } from "antd/es/table";
 import React, { useMemo, useState } from "react";
 
-type Order = "ascend" | "descend" | null;
-
-export type Column = {
+export type Column<T = any> = {
   title: React.ReactNode;
   dataIndex: string;
   sort?: boolean;
   aligns?: "left" | "center" | "right";
   width?: number | string;
   render?: (value: any, row: any, index: number) => React.ReactNode;
+  /** Sort: luôn truyền compare fn nếu muốn bật sort */
+  sorter?: (a: T, b: T) => number;
+  defaultSortOrder?: "ascend" | "descend";
 };
 
 export type CustomTableProps<T extends object> = {
+  selected: number;
   columns: Column[];
   dataSource: T[];
   count: number;
-  rowsPerPage: number;
-  page: number;
-  setPage: (p: number) => void;
-  setRowsPerPage: (n: number) => void;
-  handleSortClick?: (p: { field?: string; order: Order }) => void;
   loading?: boolean;
   /** Ẩn/hiện cột (điều khiển từ ngoài) */
   hiddenColumnKeys?: string[];
@@ -52,9 +49,6 @@ export default function CustomTableV2<T extends object>({
   columns,
   dataSource,
   count,
-  rowsPerPage,
-  page,
-  handleSortClick,
   loading,
   hiddenColumnKeys = [],
   selectable = true,
@@ -65,8 +59,8 @@ export default function CustomTableV2<T extends object>({
   rowKey,
   contextMenuEnabled = false,
   getContextMenu,
-  showAllRows = false,
   highlightedCount,
+  selected = 0,
 }: CustomTableProps<T>) {
   // ===== rowKey =====
   const getRowKey =
@@ -82,14 +76,13 @@ export default function CustomTableV2<T extends object>({
     const visible = columns.filter(
       (c) => !hiddenColumnKeys.includes(c.dataIndex)
     );
-    const indexBase = showAllRows ? 0 : (page - 1) * rowsPerPage;
     return [
       {
         title: "STT",
         dataIndex: "__index",
         width: 70,
         fixed: "left" as const,
-        render: (_: any, __: any, idx: number) => indexBase + idx + 1,
+        render: (_: any, __: any, idx: number) => idx + 1,
       } as any,
       ...visible.map((c) => ({
         title: c.title,
@@ -98,21 +91,20 @@ export default function CustomTableV2<T extends object>({
         width: c.width,
         align: c.aligns,
         ellipsis: true,
-        sorter: !!c.sort,
+        sorter: c.sorter ?? false,
+        defaultSortOrder: c.defaultSortOrder,
         render: (value: any, record: any, index: number) =>
           c.render ? c.render(value, record, index) : value,
       })),
     ];
-  }, [columns, hiddenColumnKeys, page, rowsPerPage, showAllRows]);
+  }, [columns, hiddenColumnKeys]);
 
-  // ===== sort -> bắn ra ngoài =====
-  const onChange: TableProps<T>["onChange"] = (_p, _f, sorter) => {
-    const s = Array.isArray(sorter) ? sorter[0] : sorter;
-    const field =
-      (s?.field as string | undefined) ??
-      (s?.column?.key as string | undefined);
-    const order = (s?.order as Order) ?? null;
-    handleSortClick?.({ field, order });
+  // ===== onChange handler =====
+  const onChange: TableProps<T>["onChange"] = (_p, _f, s) => {
+    const srt = Array.isArray(s) ? s[0] : s; // đơn giản: lấy sort đầu
+    const order = srt?.order;
+    const field = srt?.field as React.Key | undefined;
+    setSorter(order ? { field, order } : null);
   };
 
   // ===== selection: controlled/uncontrolled =====
@@ -131,20 +123,47 @@ export default function CustomTableV2<T extends object>({
         preserveSelectedRowKeys,
       }
     : undefined;
-
-  // drag highlight + click cả dòng để toggle chọn
   const [highlightedKeys, setHighlightedKeys] = useState<React.Key[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [startIndex, setStartIndex] = useState<number | null>(null);
+  const [lastClickTime, setLastClickTime] = useState<number>(0);
+  const [lastClickKey, setLastClickKey] = useState<React.Key | null>(null);
 
-  const getIndexByKey = (key: React.Key) =>
-    dataSource.findIndex((r) => getRowKey(r as any) === key);
-  const getKeyByIndex = (idx: number) => getRowKey(dataSource[idx] as any);
+  type Sorter = { field?: React.Key; order?: "ascend" | "descend" } | null;
+  const [sorter, setSorter] = useState<Sorter>(() => {
+    const c = columns.find((c) => c.defaultSortOrder);
+    return c ? { field: c.dataIndex, order: c.defaultSortOrder } : null;
+  });
 
-  const onRow: TableProps<T>["onRow"] = (record) => ({
+  const viewData = useMemo(() => {
+    if (!sorter?.field) return dataSource;
+
+    const col = columns.find((c) => c.dataIndex === sorter.field);
+    if (!col?.sorter) return dataSource;
+
+    const cmp = col.sorter; // compare function do bạn cung cấp
+    const arr = [...dataSource].sort((a, b) => {
+      const r = (cmp as any)(a, b);
+      return sorter.order === "descend" ? -r : r;
+    });
+    return arr;
+  }, [dataSource, columns, sorter]);
+
+  const keyIndexMap = useMemo(() => {
+    const m = new Map<React.Key, number>();
+    viewData.forEach((r, i) => m.set(getRowKey(r as any), i));
+    return m;
+  }, [viewData]);
+
+  // const getIndexByKey = (key: React.Key) =>
+  //   dataSource.findIndex((r) => getRowKey(r as any) === key);
+  // const getKeyByIndex = (idx: number) => getRowKey(dataSource[idx] as any);
+  const getIndexByKey = (key: React.Key) => keyIndexMap.get(key) ?? -1;
+  const getKeyByIndex = (idx: number) => getRowKey(viewData[idx] as any);
+
+  const onRow: TableProps<T>["onRow"] = (record, index) => ({
     onMouseDown: (e) => {
       if (!selectable) return;
-      // Chỉ khởi tạo kéo bôi đen với chuột trái
       if ((e as React.MouseEvent).button !== 0) return;
       const target = e.target as HTMLElement;
       if (
@@ -153,16 +172,23 @@ export default function CustomTableV2<T extends object>({
         )
       )
         return;
-      const startKey = getRowKey(record);
-      setIsDragging(true);
-      setStartIndex(getIndexByKey(startKey));
-      setHighlightedKeys([startKey]);
       e.preventDefault();
+
+      const timeout = setTimeout(() => {
+        const startKey = getRowKey(record);
+        setIsDragging(true);
+        // ưu tiên index đang render; fallback qua map nếu thiếu
+        setStartIndex(index ?? getIndexByKey(startKey) ?? 0);
+        setHighlightedKeys([startKey]);
+      }, 150);
+
+      (e.currentTarget as any)._dragTimeout = timeout;
     },
     onMouseEnter: () => {
       if (!isDragging || startIndex === null) return;
-      const endIndex = getIndexByKey(getRowKey(record));
-      if (endIndex < 0) return;
+      const endIndex = index ?? getIndexByKey(getRowKey(record));
+      if (endIndex == null || endIndex < 0) return;
+
       const from = Math.min(startIndex, endIndex);
       const to = Math.max(startIndex, endIndex);
       const range: React.Key[] = [];
@@ -170,25 +196,76 @@ export default function CustomTableV2<T extends object>({
       setHighlightedKeys(range);
     },
     onMouseUp: () => setIsDragging(false),
-    onClick: (e) => {
-      if (!selectable || !onRowClickSelect) return;
-      if (isDragging) return; // tránh toggle khi đang kéo chọn
-      const target = e.target as HTMLElement;
-      if (
-        target.closest(
-          "a,button,input,textarea,select,[role='button'],.ant-checkbox"
-        )
-      )
+    onClick: (event) => {
+      console.log("Click vào row:", record);
+
+      // Hủy timeout drag nếu có
+      const target = event.currentTarget as any;
+      if (target._dragTimeout) {
+        clearTimeout(target._dragTimeout);
+        target._dragTimeout = null;
+        console.log("Đã hủy drag timeout");
+      }
+
+      if (!selectable || !onRowClickSelect) {
+        console.log(
+          "Click bị chặn - selectable:",
+          selectable,
+          "onRowClickSelect:",
+          onRowClickSelect
+        );
         return;
+      }
 
-      const key = getRowKey(record);
-      const exists = selectedKeys.includes(key);
-      const next = exists
-        ? selectedKeys.filter((k) => k !== key)
-        : [...selectedKeys, key];
+      if (isDragging) {
+        console.log("Đang dragging - bỏ qua click");
+        return;
+      }
 
-      const rows = dataSource.filter((r) => next.includes(getRowKey(r))) as T[];
-      setKeys(next, rows);
+      const clickTarget = event.target as HTMLElement;
+      // Chỉ loại trừ khi click trực tiếp vào checkbox, cho phép click vào các phần khác của row
+      if (clickTarget.closest(".ant-checkbox")) {
+        console.log("Click vào checkbox - bỏ qua");
+        return;
+      }
+
+      const currentTime = Date.now();
+      const currentKey = getRowKey(record);
+
+      // Kiểm tra double-click (trong vòng 300ms và cùng một row)
+      if (currentTime - lastClickTime < 300 && lastClickKey === currentKey) {
+        console.log("Double click detected cho row:", currentKey);
+
+        // Reset double-click state
+        setLastClickTime(0);
+        setLastClickKey(null);
+
+        // Xử lý double-click
+        const key = getRowKey(record);
+        const exists = selectedKeys.includes(key);
+        const next = exists
+          ? selectedKeys.filter((k) => k !== key)
+          : [...selectedKeys, key];
+
+        const rows = dataSource.filter((r) =>
+          next.includes(getRowKey(r))
+        ) as T[];
+        setKeys(next, rows);
+
+        console.log(
+          "Đã cập nhật selection - key:",
+          key,
+          "exists:",
+          exists,
+          "next:",
+          next
+        );
+      } else {
+        // Single click - lưu thông tin để detect double-click
+        setLastClickTime(currentTime);
+        setLastClickKey(currentKey);
+        console.log("Single click - lưu để detect double-click");
+      }
     },
   });
 
@@ -206,7 +283,7 @@ export default function CustomTableV2<T extends object>({
 
         if (rowIndex >= 0) {
           actualRecord = dataSource[rowIndex];
-          console.log("Found record from dataSource:", actualRecord);
+          // console.log("Found record from dataSource:", actualRecord);
         } else {
           console.error("Could not find record in dataSource");
         }
@@ -267,7 +344,7 @@ export default function CustomTableV2<T extends object>({
           size="small"
           rowKey={getRowKey}
           columns={antColumns as any}
-          dataSource={dataSource}
+          dataSource={viewData}
           loading={loading}
           sticky
           scroll={{ x: true }}
@@ -276,9 +353,13 @@ export default function CustomTableV2<T extends object>({
           tableLayout="fixed"
           rowSelection={rowSelection}
           onRow={onRow}
-          rowClassName={(rec) =>
-            highlightedKeys.includes(getRowKey(rec)) ? "row-highlighted" : ""
-          }
+          rowClassName={(rec) => {
+            const isHighlighted = highlightedKeys.includes(getRowKey(rec));
+            const isSelected = selectedKeys.includes(getRowKey(rec));
+            return `${isHighlighted ? "row-highlighted" : ""} ${
+              isSelected ? "row-selected-no-bg" : ""
+            }`;
+          }}
           components={components}
           bordered
         />
@@ -294,11 +375,13 @@ export default function CustomTableV2<T extends object>({
       >
         <Typography.Text>
           Bôi đen:{" "}
-          <span style={{ color: "red" }}>
+          <span style={{ color: "#1677ff" }}>
             {highlightedCount ?? highlightedKeys.length}
           </span>
+          <span style={{ marginLeft: 12 }}>Đã chọn: </span>
+          <span style={{ color: "green" }}>{selected}</span>
           <span style={{ marginLeft: 12 }}>Tất cả: </span>
-          <span style={{ color: "#1677ff" }}>{count}</span>
+          <span style={{ color: "red" }}>{count}</span>
         </Typography.Text>
       </div>
     </div>

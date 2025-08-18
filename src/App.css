@@ -162,8 +162,18 @@
 .custom-table-strong-borders .ant-table-tbody > tr > td {
   border-bottom: 1px solid #cfd3d8 !important; /* viền giữa dòng đậm hơn */
 }
-.custom-table-strong-borders .ant-table-container table > thead > tr > th:last-child,
-.custom-table-strong-borders .ant-table-container table > tbody > tr > td:last-child {
+.custom-table-strong-borders
+  .ant-table-container
+  table
+  > thead
+  > tr
+  > th:last-child,
+.custom-table-strong-borders
+  .ant-table-container
+  table
+  > tbody
+  > tr
+  > td:last-child {
   border-right: none; /* bỏ viền phải cuối hàng */
 }
 
@@ -185,7 +195,76 @@
   transform: translate(-50%, -60%) rotate(45deg);
 }
 
-/* Highlight các dòng đang được bôi đen (kéo chuột) */
+/* Highlight các dòng đang được bôi đen (kéo chuột) - priority cao nhất */
 .row-highlighted td {
   background: #e6f4ff !important;
+}
+
+/* Ẩn background color của selected rows - chỉ hiển thị checkbox được chọn */
+.row-selected-no-bg td {
+  background: transparent !important;
+}
+
+/* Đảm bảo checkbox vẫn hiển thị đúng khi được chọn */
+.row-selected-no-bg .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: #1677ff !important;
+  border-color: #1677ff !important;
+}
+
+/* Đảm bảo highlight luôn hiển thị ngay cả khi dòng đã được chọn */
+.row-highlighted.row-selected-no-bg td {
+  background: #e6f4ff !important;
+}
+
+/* Style cho resize handle - đã được định nghĩa trong index.css */
+.ant-table-thead > tr > th,
+.ant-table-tbody > tr > td {
+  box-sizing: border-box;
+}
+
+/* Đảm bảo table layout hoạt động tốt với resize */
+.ant-table-container {
+  overflow-x: auto;
+}
+
+.ant-table {
+  table-layout: fixed !important;
+}
+
+/* Đảm bảo header và body cells có cùng width */
+.ant-table-thead > tr > th,
+.ant-table-tbody > tr > td {
+  box-sizing: border-box !important;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Đảm bảo resize handle hoạt động mượt mà */
+.react-resizable {
+  position: relative;
+}
+
+/* .react-resizable-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1;
+  background: transparent;
+} */
+
+.react-resizable-handle {
+  position: absolute;
+  right: -5px;
+  top: 0;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.react-resizable-handle:hover {
+  background: rgba(0, 0, 0, 0.1);
 }

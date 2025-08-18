@@ -24,11 +24,12 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { Button, Input, Space, theme } from "antd";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import ColumnChooserButton from "../components/ColumnChooserButton";
-import CustomTableV2 from "../components/CustomTableV2";
+import CustomTableV2, { type Column } from "../components/CustomTableV2";
 import { useI18n } from "../i18n/I18nContext";
 import { content } from "../mocks/sampledata";
+
 // import axios from "axios";
 
 export type Account = {
@@ -49,14 +50,8 @@ interface Props {
 }
 
 export default function AccountsTablePage({ setData }: Props) {
-  const [sortField, setSortField] = useState<string | undefined>();
-  const [sortOrder, setSortOrder] = useState<"ascend" | "descend" | null>(null);
-  console.log("sortField:", sortField, "sortOrder:", sortOrder);
   const { token } = theme.useToken();
   const [loading] = useState(false);
-  // phân trang
-  const [page, setPage] = useState(1); // 1-based
-  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [keyword, setKeyword] = useState("");
   const [hiddenCols, setHiddenCols] = useState<string[]>([]); // các cột đang ẨN
   setData(content); // set data ban đầu
@@ -70,9 +65,22 @@ export default function AccountsTablePage({ setData }: Props) {
   const [hiddenItemIds, setHiddenItemIds] = useState<React.Key[]>([]);
 
   // === Filtered data source ===
-  const filteredDataSource = content.filter(
-    (item) => !hiddenItemIds.includes(item.id)
-  );
+  const filteredDataSource = useMemo(() => {
+    let data = content.filter((item) => !hiddenItemIds.includes(item.id));
+
+    // Filter by keyword
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase();
+      data = data.filter(
+        (item) =>
+          item.phone?.toLowerCase().includes(lowerKeyword) ||
+          item.createdBy?.toLowerCase().includes(lowerKeyword) ||
+          item.cookie?.toLowerCase().includes(lowerKeyword)
+      );
+    }
+
+    return data;
+  }, [content, hiddenItemIds, keyword]);
 
   // === Actions ===
   // const editRecord = (record: any) => {
@@ -138,28 +146,29 @@ export default function AccountsTablePage({ setData }: Props) {
     }
   };
 
-  const columns: any = [
+  const safeStr = (v: any) => (v ?? "").toString();
+
+  const columns: Column<any>[] = [
     {
       title: t("account.table.phone"),
       dataIndex: "phone",
-      key: "phone",
       width: 140,
-      sorter: true,
+      sorter: (a: any, b: any) =>
+        safeStr(a.phone).localeCompare(safeStr(b.phone)),
     },
     {
       title: t("account.table.password"),
       dataIndex: "password",
-      key: "password",
       width: 120,
+      // không sort
     },
     {
       title: t("account.table.avatar"),
       dataIndex: "avatar",
-      key: "avatar",
       width: 120,
       render: (avatarUrl: string) => {
-        const defaultAvatar = "https://via.placeholder.com/40x40/1677ff/ffffff?text=U";
-        
+        const defaultAvatar =
+          "https://via.placeholder.com/40x40/1677ff/ffffff?text=U";
         return (
           <img
             src={avatarUrl || defaultAvatar}
@@ -181,37 +190,41 @@ export default function AccountsTablePage({ setData }: Props) {
     {
       title: t("account.table.category"),
       dataIndex: "category",
-      key: "category",
       width: 120,
+      sorter: (a, b) => safeStr(a.category).localeCompare(safeStr(b.category)),
     },
     {
       title: t("account.table.cookie"),
       dataIndex: "cookie",
-      key: "cookie",
-      ellipsis: true,
+      width: 120,
     },
     {
       title: t("account.table.birthday"),
       dataIndex: "birthday",
-      key: "birthday",
       width: 120,
+      // nếu birthday là Date/string parse được
+      sorter: (a, b) => {
+        const ta = Date.parse(a.birthday ?? "") || 0;
+        const tb = Date.parse(b.birthday ?? "") || 0;
+        return ta - tb;
+      },
     },
     {
       title: t("account.table.fullName"),
       dataIndex: "createdBy",
-      key: "createdBy",
       width: 140,
+      sorter: (a, b) =>
+        safeStr(a.createdBy).localeCompare(safeStr(b.createdBy)),
     },
     {
       title: t("account.table.gender"),
       dataIndex: "gender",
-      key: "gender",
       width: 100,
+      sorter: (a, b) => safeStr(a.gender).localeCompare(safeStr(b.gender)),
     },
     {
       title: t("account.table.proxy"),
       dataIndex: "proxy",
-      key: "proxy",
       width: 120,
     },
   ];
@@ -233,7 +246,6 @@ export default function AccountsTablePage({ setData }: Props) {
           value={keyword}
           onChange={(e) => {
             setKeyword(e.target.value);
-            setPage(1);
           }}
           style={{ width: 280 }}
         />
@@ -253,24 +265,8 @@ export default function AccountsTablePage({ setData }: Props) {
           />
         </div>
 
-        {/* Thống kê tổng số, live, die, đã chọn */}
-        <span style={{ marginLeft: 8, fontWeight: "bold" }}>
-          {t("account.management.total")}:{" "}
-          <span style={{ color: "#1677ff" }}>{filteredDataSource.length}</span>{" "}
-          Live: <span style={{ color: "#52c41a" }}>1</span> Die:{" "}
-          <span style={{ color: "#ff4d4f" }}>0</span>{" "}
-          {t("account.management.selected")}:{" "}
-          <span style={{ color: "#1677ff" }}>{selectedRowKeys.length}</span>
-          {hiddenItemIds.length > 0 && (
-            <span style={{ color: "#faad14" }}>
-              {" "}
-              Ẩn: {hiddenItemIds.length}
-            </span>
-          )}
-        </span>
-
         <div style={{ marginLeft: "auto" }} />
-        
+
         <Space>
           <Button icon={<DeleteOutlined />}>
             {t("account.management.trash")}
@@ -287,20 +283,12 @@ export default function AccountsTablePage({ setData }: Props) {
 
       <CustomTableV2<any>
         columns={columns}
+        selected={selectedRowKeys.length}
         dataSource={filteredDataSource}
         count={filteredDataSource.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        setPage={setPage}
-        setRowsPerPage={setRowsPerPage}
         loading={loading}
         hiddenColumnKeys={hiddenCols}
         showAllRows
-        handleSortClick={({ field, order }) => {
-          setSortField(field);
-          setSortOrder(order);
-          setPage(1);
-        }}
         // === Selection props ===
         selectable={true}
         selectedRowKeys={selectedRowKeys}
@@ -313,7 +301,7 @@ export default function AccountsTablePage({ setData }: Props) {
         rowKey="id"
         // === Context menu ===
         contextMenuEnabled
-        getContextMenu={(record, selectedRows, highlightedRows, allData) => {
+        getContextMenu={(record, _selectedRows, highlightedRows, allData) => {
           // Validate record
           if (!record || !record.id) {
             // Khi không có record (vd: danh sách trống), vẫn hiển thị menu để phục hồi
@@ -337,29 +325,11 @@ export default function AccountsTablePage({ setData }: Props) {
             };
           }
 
-          // Kiểm tra xem record hiện tại có trong selectedRows không (so sánh theo ID)
-          const isCurrentRecordSelected = selectedRows.some(
-            (row) => row?.id === record.id
-          );
-
           // Logic targets:
           // - Nếu click "Chọn" trên row chưa được chọn → targets = [record] (chỉ row hiện tại)
           // - Nếu click "Bỏ chọn" trên row đã được chọn → targets = [record] (chỉ row hiện tại)
           // - Nếu click "Bỏ chọn" trên row đã được chọn và có nhiều row được chọn → targets = selectedRows (tất cả selected)
           const targets = [record]; // Mặc định chỉ tác động đến row hiện tại
-
-          console.log("=== Context Menu Debug ===");
-          console.log("Record ID:", record.id);
-          console.log(
-            "SelectedRows IDs:",
-            selectedRows.map((r) => r?.id)
-          );
-          console.log("isCurrentRecordSelected:", isCurrentRecordSelected);
-          console.log(
-            "Targets:",
-            targets.map((t) => t?.id)
-          );
-          console.log("========================");
 
           return {
             items: [
