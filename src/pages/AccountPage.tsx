@@ -9,6 +9,7 @@ import ImportAccountsModal from "../components/ModalAddCustomer";
 import { useI18n } from "../i18n/I18nContext";
 import { showNotification } from "../utils/notify";
 import AccountsTablePage from "./AccountsTablePage"; // 🔹 table bên phải bạn đã có
+import { content } from "../mocks/sampledata";
 
 const AccountPage: React.FC = () => {
   // demo data danh mục (thay bằng API thực tế)
@@ -17,13 +18,12 @@ const AccountPage: React.FC = () => {
     { key: "commercial", name: "Thương mại", count: 1 },
   ]);
   const [checked, setChecked] = useState<string[]>([]);
-  const [data, setData] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   //   console.log("data here", data);
 
   const exportToExcel = () => {
     // 1. Chuyển data thành worksheet
-    const worksheet = XLSX.utils.json_to_sheet(data);
+    const worksheet = XLSX.utils.json_to_sheet(content);
 
     // 2. Tạo workbook
     const workbook = XLSX.utils.book_new();
@@ -125,7 +125,7 @@ const AccountPage: React.FC = () => {
               className="custom-table-strong-borders"
               size="small"
             >
-              <AccountsTablePage setData={setData} />
+              <AccountsTablePage />
             </Card>
           </Col>
         </Row>

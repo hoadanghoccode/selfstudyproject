@@ -45,16 +45,11 @@ export type Account = {
   avatar?: string;
 };
 
-interface Props {
-  setData: React.Dispatch<React.SetStateAction<any[]>>;
-}
-
-export default function AccountsTablePage({ setData }: Props) {
+export default function AccountsTablePage() {
   const { token } = theme.useToken();
   const [loading] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [hiddenCols, setHiddenCols] = useState<string[]>([]); // các cột đang ẨN
-  setData(content); // set data ban đầu
   const { t } = useI18n();
 
   // === Selection state (consolidated) ===
@@ -282,6 +277,7 @@ export default function AccountsTablePage({ setData }: Props) {
       </div>
 
       <CustomTableV2<any>
+        resizable={true}
         columns={columns}
         selected={selectedRowKeys.length}
         dataSource={filteredDataSource}
@@ -360,6 +356,7 @@ export default function AccountsTablePage({ setData }: Props) {
                           ...targets.map((t: any) => t?.id),
                         ]),
                       ]);
+                      console.log("Selected highlighted rows:", targets);
                     },
                   },
                   {
