@@ -1,9 +1,9 @@
 import { Table, Typography, Menu } from "antd";
 import type { TableProps, MenuProps } from "antd";
-import React from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Resizable } from "react-resizable";
-// import "react-resizable/css/styles.css"; // bật nếu muốn style mặc định
+import "react-resizable/css/styles.css";
 
 // ===================== Resizable Header Cell =====================
 const ResizableTitle = React.memo((props: any) => {
@@ -98,9 +98,6 @@ export type CustomTableProps<T extends object> = {
 
   // === Context menu ===
   contextMenuEnabled?: boolean;
-  /** Trả về object kiểu MenuProps-like.
-   *  Có thể nhét onClick vào từng item; component sẽ bóc theo key để gọi đúng handler.
-   */
   getContextMenu?: (
     record: T | undefined,
     selectedRows: T[],
@@ -217,16 +214,20 @@ export default function CustomTableV2<T extends object>({
       }
     : undefined;
 
-  // ===== drag highlight =====
+  // ===== drag highlight (HYBRID) =====
   const [highlightedKeys, setHighlightedKeys] = React.useState<React.Key[]>([]);
+  const [isMouseDown, setIsMouseDown] = React.useState(false);
   const [isDragging, setIsDragging] = React.useState(false);
   const [startIndex, setStartIndex] = React.useState<number | null>(null);
   const [lastClickTime, setLastClickTime] = React.useState<number>(0);
   const [lastClickKey, setLastClickKey] = React.useState<React.Key | null>(
     null
   );
+  const startYRef = React.useRef<number>(0);
 
-  const keyIndexMap = React.useMemo(() => {
+  const DRAG_THRESHOLD = 3; // px
+
+  const keyIndexMap = useMemo(() => {
     const m = new Map<React.Key, number>();
     viewData.forEach((r, i) => m.set(getRowKey(r as any), i));
     return m;
@@ -269,15 +270,15 @@ export default function CustomTableV2<T extends object>({
     []
   );
 
-  const closeCtx = React.useCallback(() => {
+  const closeCtx = useCallback(() => {
     setCtx((s) => ({ ...s, open: false }));
   }, []);
 
-  // đóng menu khi click ngoài / Esc (bubble phase) — không chặn click bên trong menu
-  React.useEffect(() => {
+  // đóng menu khi click ngoài / Esc
+  useEffect(() => {
     if (!ctx.open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node)) return; // để Menu onClick chạy trước
+      if (menuRef.current?.contains(e.target as Node)) return;
       closeCtx();
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeCtx();
@@ -291,34 +292,31 @@ export default function CustomTableV2<T extends object>({
     };
   }, [ctx.open, closeCtx]);
 
-  const highlightedKeySet = React.useMemo(
+  const highlightedKeySet = useMemo(
     () => new Set(highlightedKeys),
     [highlightedKeys]
   );
-  const selectedKeySet = React.useMemo(
-    () => new Set(selectedKeys),
-    [selectedKeys]
-  );
+  const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
 
-  const highlightedRowsMemo = React.useMemo(
+  const highlightedRowsMemo = useMemo(
     () => viewData.filter((r) => highlightedKeySet.has(getRowKey(r))),
     [viewData, highlightedKeySet]
   );
 
-  const selectedRowsMemo = React.useMemo(
+  const selectedRowsMemo = useMemo(
     () => viewData.filter((r) => selectedKeySet.has(getRowKey(r))),
     [viewData, selectedKeySet]
   );
 
   // rowKey -> record map để bắt contextmenu ở wrapper
-  const rowMap = React.useMemo(() => {
+  const rowMap = useMemo(() => {
     const m = new Map<string, T>();
     viewData.forEach((r: any) => m.set(String(getRowKey(r)), r));
     return m;
   }, [viewData]);
 
-  // Bắt chuột phải ở wrapper của bảng (ổn định hơn onRow)
-  React.useEffect(() => {
+  // Bắt chuột phải ở wrapper của bảng
+  useEffect(() => {
     const el = tableWrapRef.current;
     if (!el) return;
     const onCtx = (e: MouseEvent) => {
@@ -360,11 +358,72 @@ export default function CustomTableV2<T extends object>({
     buildMenuModel,
   ]);
 
+  // ====== Toggle chọn theo danh sách key (Space) ======
+  const toggleSelectionFor = React.useCallback(
+    (keysToToggle: React.Key[]) => {
+      if (!selectable || keysToToggle.length === 0) return;
+
+      const cur = new Set(selectedKeys);
+      keysToToggle.forEach((k) => {
+        if (cur.has(k)) cur.delete(k);
+        else cur.add(k);
+      });
+
+      const next = Array.from(cur);
+      const rows = dataSource.filter((r) => next.includes(getRowKey(r))) as T[];
+      setKeys(next, rows);
+    },
+    [selectable, selectedKeys, dataSource, getRowKey]
+  );
+
+  // ====== Bắt phím Space trên wrapper ======
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Space -> toggle chọn/bỏ chọn theo vùng bôi đen
+    if (e.code === "Space" || e.key === " ") {
+      const target = e.target as HTMLElement;
+      if (target.closest('input,textarea,select,[contenteditable="true"]'))
+        return;
+      if (highlightedKeys.length === 0) return;
+      e.preventDefault();
+      toggleSelectionFor(highlightedKeys);
+      return;
+    }
+
+    // Esc -> clear vùng bôi đen
+    if (e.key === "Escape") {
+      setHighlightedKeys([]);
+    }
+  };
+
+  // ====== Dừng drag nếu nhả chuột ngoài bảng ======
+  React.useEffect(() => {
+    const up = () => {
+      setIsMouseDown(false);
+      setIsDragging(false);
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, []);
+
+  // ====== Cập nhật dải bôi đen theo endIndex ======
+  const updateRange = React.useCallback(
+    (endIdx: number) => {
+      if (startIndex === null || endIdx < 0) return;
+      const from = Math.min(startIndex, endIdx);
+      const to = Math.max(startIndex, endIdx);
+      const range: React.Key[] = [];
+      for (let i = from; i <= to; i++) range.push(getKeyByIndex(i));
+      setHighlightedKeys(range.length ? range : [getKeyByIndex(startIndex)]);
+    },
+    [startIndex, getKeyByIndex]
+  );
+
   // ===== onRow (drag highlight + click/dblclick) =====
   const onRow: TableProps<T>["onRow"] = (record, index) => ({
     onMouseDown: (e) => {
       if (!selectable) return;
       if ((e as React.MouseEvent).button !== 0) return;
+
       const target = e.target as HTMLElement;
       if (
         target.closest(
@@ -372,37 +431,51 @@ export default function CustomTableV2<T extends object>({
         )
       )
         return;
+
       e.preventDefault();
+      const startKey = getRowKey(record);
+      const idx = index ?? getIndexByKey(startKey) ?? 0;
 
-      const timeout = setTimeout(() => {
-        const startKey = getRowKey(record);
+      setIsMouseDown(true);
+      setIsDragging(false); // sẽ thành true khi di chuyển vượt ngưỡng
+      setStartIndex(idx);
+      startYRef.current = (e as React.MouseEvent).clientY;
+
+      // 👇 RESET vùng bôi đen sang item đang click
+      setHighlightedKeys([startKey]);
+
+      tableWrapRef.current?.focus(); // nhận phím Space
+    },
+
+    // Bắt đầu drag ngay cả khi còn ở hàng đầu tiên
+    onMouseMove: (e) => {
+      if (!isMouseDown || isDragging) return;
+      const dy = Math.abs((e as React.MouseEvent).clientY - startYRef.current);
+      if (dy > DRAG_THRESHOLD) {
         setIsDragging(true);
-        setStartIndex(index ?? getIndexByKey(startKey) ?? 0);
-        setHighlightedKeys([startKey]);
-      }, 150);
-
-      (e.currentTarget as any)._dragTimeout = timeout;
-    },
-    onMouseEnter: () => {
-      if (!isDragging || startIndex === null) return;
-      const endIndex = index ?? getIndexByKey(getRowKey(record));
-      if (endIndex == null || endIndex < 0) return;
-
-      const from = Math.min(startIndex, endIndex);
-      const to = Math.max(startIndex, endIndex);
-      const range: React.Key[] = [];
-      for (let i = from; i <= to; i += 1) range.push(getKeyByIndex(i));
-      setHighlightedKeys(range);
-    },
-    onMouseUp: () => setIsDragging(false),
-    onClick: (event) => {
-      const target = event.currentTarget as any;
-      if (target._dragTimeout) {
-        clearTimeout(target._dragTimeout);
-        target._dragTimeout = null;
+        const endIdx = index ?? getIndexByKey(getRowKey(record));
+        updateRange(endIdx);
       }
+    },
+
+    // Khi đã drag, sang hàng khác thì mở rộng/thu hẹp dải
+    onMouseEnter: () => {
+      if (!isMouseDown || !isDragging) return;
+      const endIdx = index ?? getIndexByKey(getRowKey(record));
+      updateRange(endIdx);
+    },
+
+    onMouseUp: () => {
+      setIsMouseDown(false);
+      setIsDragging(false);
+    },
+
+    onClick: (event) => {
+      // đảm bảo wrapper có focus để sau đó Space hoạt động
+      tableWrapRef.current?.focus();
+
       if (!selectable || !onRowClickSelect) return;
-      if (isDragging) return;
+      if (isDragging) return; // click sau khi drag: bỏ qua
 
       const clickTarget = event.target as HTMLElement;
       if (
@@ -433,7 +506,6 @@ export default function CustomTableV2<T extends object>({
         setLastClickKey(currentKey);
       }
     },
-    // ❌ KHÔNG dùng onContextMenu ở đây nữa (đã bắt ở wrapper)
   });
 
   // ===== columns (ẩn/hiện) + STT + onHeaderCell (resize) =====
@@ -512,7 +584,9 @@ export default function CustomTableV2<T extends object>({
   const table = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div
-        ref={tableWrapRef} // 👈 wrapper để bắt chuột phải ổn định
+        ref={tableWrapRef}
+        tabIndex={0} // để nhận sự kiện bàn phím
+        onKeyDown={handleKeyDown} // Space để toggle theo highlightedKeys
         style={{
           boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
           borderRadius: 8,
