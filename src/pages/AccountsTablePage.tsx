@@ -289,7 +289,7 @@ export default function AccountsTablePage() {
         count={filteredDataSource.length}
         loading={loading}
         hiddenColumnKeys={hiddenCols}
-        showAllRows
+        // showAllRows
         // === Selection props ===
         selectable={true}
         selectedRowKeys={selectedRowKeys}

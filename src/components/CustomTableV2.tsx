@@ -615,13 +615,15 @@ export default function CustomTableV2<T extends object>({
         className="custom-table-strong-borders"
       >
         <Table<T>
+          virtual
           size="small"
           rowKey={getRowKey}
           columns={antColumns as any}
           dataSource={viewData}
           loading={loading}
           sticky={false}
-          scroll={{ x: "max-content" }}
+          // scroll={{ x: "max-content" }}
+          scroll={{ x: 1000, y: 480 }}
           pagination={false}
           onChange={onChange}
           tableLayout="fixed"
