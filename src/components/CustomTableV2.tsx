@@ -220,7 +220,9 @@ export default function CustomTableV2<T extends object>({
   const [isDragging, setIsDragging] = React.useState(false);
   const [startIndex, setStartIndex] = React.useState<number | null>(null);
   const [lastClickTime, setLastClickTime] = React.useState<number>(0);
-  const [lastClickKey, setLastClickKey] = React.useState<React.Key | null>(null);
+  const [lastClickKey, setLastClickKey] = React.useState<React.Key | null>(
+    null
+  );
   const startYRef = React.useRef<number>(0);
   const DRAG_THRESHOLD = 3; // px
 
@@ -656,12 +658,12 @@ export default function CustomTableV2<T extends object>({
           columns={antColumns as any}
           dataSource={viewData}
           loading={loading}
-          sticky
+          // sticky
           // CHÚ Ý: cả x và y phải là number khi dùng virtual
           scroll={{ x: totalWidth, y: 480 }}
           pagination={false}
           onChange={onChange}
-          tableLayout="fixed"
+          // tableLayout="fixed"
           rowSelection={rowSelection}
           onRow={onRow}
           rowClassName={(rec) => {
