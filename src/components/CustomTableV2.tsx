@@ -61,7 +61,8 @@ const ResizableTitle = React.memo((props: any) => {
       onResizeStop={handleResizeStop}
       draggableOpts={{ enableUserSelectHack: false, useCSSTransforms: true }}
     >
-      <th {...restProps} style={{ position: "relative", width }} />
+      {/* <th {...restProps} style={{ position: "relative", width }} /> */}
+      <th {...restProps} style={{ ...(restProps?.style || {}), width }} />
     </Resizable>
   );
 });
@@ -417,37 +418,40 @@ export default function CustomTableV2<T extends object>({
     },
     [startIndex, getKeyByIndex]
   );
+  const isClickInSelectionCell = (el: HTMLElement | null) => {
+    const td = el?.closest("td");
+    return !!td && td.classList.contains("ant-table-selection-column");
+  };
 
   // ===== onRow (drag highlight + click/dblclick) =====
   const onRow: TableProps<T>["onRow"] = (record, index) => ({
     onMouseDown: (e) => {
       if (!selectable) return;
-      if ((e as React.MouseEvent).button !== 0) return;
 
       const target = e.target as HTMLElement;
+      // ✅ nếu bấm trong ô selection/checkbox → KHÔNG kích hoạt drag-highlight
       if (
-        target.closest(
-          "a,button,input,textarea,select,[role='button'],.ant-checkbox,.react-resizable-handle"
-        )
-      )
+        isClickInSelectionCell(target) ||
+        target.closest(".ant-checkbox") ||
+        target.closest(".react-resizable-handle")
+      ) {
         return;
+      }
+
+      if ((e as React.MouseEvent).button !== 0) return;
 
       e.preventDefault();
       const startKey = getRowKey(record);
       const idx = index ?? getIndexByKey(startKey) ?? 0;
 
       setIsMouseDown(true);
-      setIsDragging(false); // sẽ thành true khi di chuyển vượt ngưỡng
+      setIsDragging(false);
       setStartIndex(idx);
       startYRef.current = (e as React.MouseEvent).clientY;
-
-      // 👇 RESET vùng bôi đen sang item đang click
       setHighlightedKeys([startKey]);
-
-      tableWrapRef.current?.focus(); // nhận phím Space
+      tableWrapRef.current?.focus();
     },
 
-    // Bắt đầu drag ngay cả khi còn ở hàng đầu tiên
     onMouseMove: (e) => {
       if (!isMouseDown || isDragging) return;
       const dy = Math.abs((e as React.MouseEvent).clientY - startYRef.current);
@@ -458,7 +462,6 @@ export default function CustomTableV2<T extends object>({
       }
     },
 
-    // Khi đã drag, sang hàng khác thì mở rộng/thu hẹp dải
     onMouseEnter: () => {
       if (!isMouseDown || !isDragging) return;
       const endIdx = index ?? getIndexByKey(getRowKey(record));
@@ -471,18 +474,34 @@ export default function CustomTableV2<T extends object>({
     },
 
     onClick: (event) => {
-      // đảm bảo wrapper có focus để sau đó Space hoạt động
       tableWrapRef.current?.focus();
 
-      if (!selectable || !onRowClickSelect) return;
-      if (isDragging) return; // click sau khi drag: bỏ qua
+      if (!selectable) return;
+      if (isDragging) return;
 
       const clickTarget = event.target as HTMLElement;
-      if (
-        clickTarget.closest(".ant-checkbox") ||
-        clickTarget.closest(".react-resizable-handle")
-      )
+
+      // ✅ Nếu click trong ô selection (bất kỳ vị trí nào) → toggle ngay
+      if (isClickInSelectionCell(clickTarget)) {
+        // nếu bấm trực tiếp lên checkbox thì để AntD xử lý, tránh toggle 2 lần
+        if (clickTarget.closest(".ant-checkbox")) return;
+
+        const key = getRowKey(record);
+        const exists = selectedKeys.includes(key);
+        const next = exists
+          ? selectedKeys.filter((k) => k !== key)
+          : [...selectedKeys, key];
+
+        const rows = dataSource.filter((r) =>
+          next.includes(getRowKey(r))
+        ) as T[];
+        setKeys(next, rows);
         return;
+      }
+
+      // Giữ logic double-click cho phần còn lại của hàng (nếu bạn muốn)
+      if (!onRowClickSelect) return;
+      if (clickTarget.closest(".react-resizable-handle")) return;
 
       const now = Date.now();
       const currentKey = getRowKey(record);

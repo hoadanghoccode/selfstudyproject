@@ -222,6 +222,11 @@ export default function AccountsTablePage() {
       dataIndex: "proxy",
       width: 120,
     },
+    {
+      title: "Trạng thái",
+      dataIndex: "",
+      width: 120,
+    },
   ];
 
   return (
@@ -514,6 +519,15 @@ export default function AccountsTablePage() {
                 label: "Chức năng",
                 icon: <SettingOutlined />,
                 onClick: () => console.log("Chức năng khác"),
+                children: [
+                  {
+                    key: "checkAccount",
+                    label: "Kiểm tra tài khoản",
+                    icon: <IdcardOutlined />,
+                    onClick: () =>
+                      console.log("Kiểm tra tài khoản:", record.id),
+                  },
+                ],
               },
 
               // === Chuyển thư mục ===
