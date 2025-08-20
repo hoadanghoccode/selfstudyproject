@@ -282,8 +282,8 @@ export default function AccountsTablePage() {
       </div>
 
       <CustomTableV2<any>
-        // virtual // bật ảo hoá
-        // rowHeight={40} // nên cố định
+        lazyBatchSize={120}
+        scrollY={600}
         resizable={true}
         columns={columns}
         selected={selectedRowKeys.length}
@@ -291,7 +291,7 @@ export default function AccountsTablePage() {
         count={filteredDataSource.length}
         loading={loading}
         hiddenColumnKeys={hiddenCols}
-        // showAllRows
+        showAllRows
         // === Selection props ===
         selectable={true}
         selectedRowKeys={selectedRowKeys}
