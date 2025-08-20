@@ -282,8 +282,6 @@ export default function AccountsTablePage() {
       </div>
 
       <CustomTableV2<any>
-        lazyBatchSize={120}
-        scrollY={600}
         resizable={true}
         columns={columns}
         selected={selectedRowKeys.length}
