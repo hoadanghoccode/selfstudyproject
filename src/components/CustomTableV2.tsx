@@ -72,7 +72,7 @@ export type Column<T = any> = {
   dataIndex: string;
   sort?: boolean;
   aligns?: "left" | "center" | "right";
-  width?: number | string;
+  width?: number | string; // sẽ ép về number
   render?: (value: any, row: any, index: number) => React.ReactNode;
   sorter?: (a: T, b: T) => number;
   defaultSortOrder?: "ascend" | "descend";
@@ -151,6 +151,8 @@ export default function CustomTableV2<T extends object>({
     const init: Record<string, number> = {};
     columns.forEach((c) => {
       if (typeof c.width === "number") init[c.dataIndex] = c.width;
+      else if (typeof c.width === "string")
+        init[c.dataIndex] = parseInt(c.width, 10) || 150;
     });
     init["__index"] = init["__index"] ?? 70;
     return init;
@@ -206,11 +208,14 @@ export default function CustomTableV2<T extends object>({
     onSelectedRowKeysChange?.(keys, rows);
   };
 
+  const selectionColW = 44; // width số cho cột checkbox (QUAN TRỌNG với virtual)
+
   const rowSelection = selectable
     ? {
         selectedRowKeys: selectedKeys,
         onChange: (keys: React.Key[], rows: T[]) => setKeys(keys, rows),
         preserveSelectedRowKeys,
+        columnWidth: selectionColW,
       }
     : undefined;
 
@@ -246,7 +251,6 @@ export default function CustomTableV2<T extends object>({
   const menuLevelOnClickRef = React.useRef<MenuProps["onClick"]>(undefined);
   const menuRef = React.useRef<HTMLDivElement>(null);
   const tableWrapRef = React.useRef<HTMLDivElement>(null);
-  const bodyRef = React.useRef<HTMLDivElement | null>(null);
 
   const buildMenuModel = React.useCallback(
     (cfg: ReturnType<NonNullable<typeof getContextMenu>> | undefined) => {
@@ -391,15 +395,64 @@ export default function CustomTableV2<T extends object>({
     }
   };
 
-  // Dừng drag nếu nhả chuột ngoài bảng
+  // ===== Window-level mousemove để drag hoạt động với virtual =====
+  const bodyRef = React.useRef<HTMLDivElement | null>(null);
+  const [rowHeight, setRowHeight] = React.useState(36);
+
+  React.useLayoutEffect(() => {
+    const wrap = tableWrapRef.current;
+    if (!wrap) return;
+
+    // container cuộn của virtual body
+    const body = wrap.querySelector(".ant-table-body") as HTMLDivElement | null;
+    if (body) {
+      bodyRef.current = body;
+
+      const firstRow =
+        (body.querySelector("tr.ant-table-row") as HTMLElement | null) ||
+        (body.querySelector(".ant-table-row") as HTMLElement | null);
+      if (firstRow) {
+        const h = firstRow.getBoundingClientRect().height;
+        if (h) setRowHeight(h);
+      }
+    }
+  }, [viewData.length]);
+
   React.useEffect(() => {
-    const up = () => {
+    const EDGE = 24; // px mép để auto-scroll
+    const SPEED = 16; // px mỗi tick
+
+    const onMove = (e: MouseEvent) => {
+      if (!isMouseDown || !bodyRef.current) return;
+
+      // bật dragging khi vượt ngưỡng
+      const dy = Math.abs(e.clientY - startYRef.current);
+      if (!isDragging && dy > DRAG_THRESHOLD) setIsDragging(true);
+
+      const body = bodyRef.current;
+      const rect = body.getBoundingClientRect();
+      const y = e.clientY - rect.top + body.scrollTop;
+      let endIdx = Math.floor(y / rowHeight);
+      endIdx = Math.max(0, Math.min(viewData.length - 1, endIdx));
+      updateRange(endIdx);
+
+      // auto scroll sát mép
+      if (e.clientY < rect.top + EDGE) body.scrollTop -= SPEED;
+      else if (e.clientY > rect.bottom - EDGE) body.scrollTop += SPEED;
+    };
+
+    const onUp = () => {
       setIsMouseDown(false);
       setIsDragging(false);
     };
-    window.addEventListener("mouseup", up);
-    return () => window.removeEventListener("mouseup", up);
-  }, []);
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isMouseDown, isDragging, rowHeight, viewData.length]);
 
   // Cập nhật dải bôi đen theo endIndex
   const updateRange = React.useCallback(
@@ -425,7 +478,7 @@ export default function CustomTableV2<T extends object>({
       if (!selectable) return;
 
       const target = e.target as HTMLElement;
-      // nếu bấm trong ô selection/checkbox → KHÔNG kích hoạt drag-highlight
+      // Nếu bấm trong ô selection/checkbox/resize → không bắt drag
       if (
         isClickInSelectionCell(target) ||
         target.closest(".ant-checkbox") ||
@@ -568,73 +621,19 @@ export default function CustomTableV2<T extends object>({
 
   /* ====== Fix layout khi virtual: tính scroll.x theo tổng width ====== */
   const totalWidth = React.useMemo(() => {
-    const sum = (antColumns as any[]).reduce((s, c) => {
+    const colsSum = (antColumns as any[]).reduce((s, c) => {
       const w = Number(c.width);
       return s + (Number.isFinite(w) ? w : 150);
     }, 0);
-    // sàn một giá trị để tránh co hẹp; bạn có thể điều chỉnh
-    return Math.max(sum, 1000);
-  }, [antColumns]);
+    // nếu có selection -> cộng thêm chiều rộng cột checkbox
+    const extra = selectable ? selectionColW : 0;
+    return Math.max(colsSum + extra, 1000);
+  }, [antColumns, selectable]);
 
   /* ===== components (override header để resize) ===== */
   const components: TableProps<T>["components"] = {
     ...(resizable ? { header: { cell: ResizableTitle } } : {}),
   };
-
-  /* ======= Lấy ref body + đo rowHeight (phục vụ kéo-bôi-đen với virtual) ======= */
-  const [rowHeight, setRowHeight] = React.useState(36);
-
-  React.useLayoutEffect(() => {
-    const wrap = tableWrapRef.current;
-    if (!wrap) return;
-
-    // container cuộn của body (với virtual)
-    const body = wrap.querySelector(".ant-table-body") as HTMLDivElement | null;
-    if (body) {
-      bodyRef.current = body;
-
-      // đo chiều cao 1 hàng
-      const firstRow =
-        (body.querySelector("tr.ant-table-row") as HTMLElement | null) ||
-        (body.querySelector(".ant-table-row") as HTMLElement | null);
-      if (firstRow) {
-        const h = firstRow.getBoundingClientRect().height;
-        if (h) setRowHeight(h);
-      }
-    }
-  }, [viewData.length, sorter, antColumns]);
-
-  /* ======= Mouse move trên container: tính endIndex + auto scroll ======= */
-  React.useEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-
-    const EDGE = 24; // px: vùng mép để auto scroll
-    const SPEED = 16; // px mỗi frame
-
-    const onMove = (e: MouseEvent) => {
-      if (!isMouseDown) return;
-
-      // bật state dragging sau khi vượt ngưỡng
-      const dy = Math.abs(e.clientY - startYRef.current);
-      if (!isDragging && dy > DRAG_THRESHOLD) {
-        setIsDragging(true);
-      }
-
-      const rect = el.getBoundingClientRect();
-      const y = e.clientY - rect.top + el.scrollTop; // toạ độ tương đối trong body
-      let endIdx = Math.floor(y / rowHeight);
-      endIdx = Math.max(0, Math.min(viewData.length - 1, endIdx));
-      updateRange(endIdx);
-
-      // auto scroll khi kéo sát mép
-      if (e.clientY < rect.top + EDGE) el.scrollTop -= SPEED;
-      else if (e.clientY > rect.bottom - EDGE) el.scrollTop += SPEED;
-    };
-
-    el.addEventListener("mousemove", onMove);
-    return () => el.removeEventListener("mousemove", onMove);
-  }, [isMouseDown, isDragging, rowHeight, viewData.length, updateRange]);
 
   /* ===================== UI ===================== */
   const table = (
@@ -658,12 +657,12 @@ export default function CustomTableV2<T extends object>({
           columns={antColumns as any}
           dataSource={viewData}
           loading={loading}
-          // sticky
+          sticky
           // CHÚ Ý: cả x và y phải là number khi dùng virtual
           scroll={{ x: totalWidth, y: 480 }}
           pagination={false}
           onChange={onChange}
-          // tableLayout="fixed"
+          tableLayout="fixed"
           rowSelection={rowSelection}
           onRow={onRow}
           rowClassName={(rec) => {
