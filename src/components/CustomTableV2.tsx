@@ -651,7 +651,7 @@ export default function CustomTableV2<T extends object>({
         className="custom-table-strong-borders"
       >
         <Table<T>
-          virtual
+          // virtual
           size="small"
           rowKey={getRowKey}
           columns={antColumns as any}
