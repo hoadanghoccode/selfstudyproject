@@ -282,12 +282,13 @@ export default function AccountsTablePage() {
       </div>
 
       <CustomTableV2<any>
-        // resizable={true}
+        resizable={true}
         showAllRows={false}
         bodyScrollY={600} // chiều cao body
-        virtual // bật ảo hoá (mặc định true)
+        virtual
+        // bật ảo hoá (mặc định true)
         virtualRowHeight={40} // có thể bỏ để auto đo
-        resizable
+        // resizable
         columns={columns}
         selected={selectedRowKeys.length}
         dataSource={filteredDataSource}
