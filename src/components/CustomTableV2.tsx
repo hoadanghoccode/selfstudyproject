@@ -66,7 +66,7 @@ const ResizableTitle = React.memo((props: any) => {
         onResize?.(e, data);
       }}
       onResizeStart={handleResizeStart}
-      onResizeStop={(e, data) => handleResizeStop(data?.size?.width)}
+      onResizeStop={(_e, data) => handleResizeStop(data?.size?.width)}
       draggableOpts={{ enableUserSelectHack: false, useCSSTransforms: true }}
     >
       {/* Ưu tiên style.width nếu được truyền từ onHeaderCell; fallback sang prop width */}
@@ -142,7 +142,7 @@ export default function CustomTableV2<T extends object>({
   selectedRowKeys,
   onSelectedRowKeysChange,
   onRowClickSelect = true,
-  preserveSelectedRowKeys = true,
+  // preserveSelectedRowKeys = true,
   rowKey,
   contextMenuEnabled = false,
   getContextMenu,
