@@ -1,11 +1,11 @@
 import { Table, Typography, Menu } from "antd";
 import type { TableProps, MenuProps } from "antd";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React from "react";
 import { createPortal } from "react-dom";
 import { Resizable } from "react-resizable";
 import "react-resizable/css/styles.css";
 
-/* ===================== Resizable Header Cell ===================== */
+/* ===================== Resizable Header Cell (no re-render while dragging) ===================== */
 const ResizableTitle = React.memo((props: any) => {
   const {
     onResize,
@@ -19,15 +19,20 @@ const ResizableTitle = React.memo((props: any) => {
 
   if (!width) return <th {...restProps} />;
 
+  const lastWRef = React.useRef<number>(width);
+
   const handleResizeStart = React.useCallback(() => {
     onHeaderResizeStart?.();
     document.body.classList.add("resizing");
   }, [onHeaderResizeStart]);
 
-  const handleResizeStop = React.useCallback(() => {
-    onHeaderResizeStop?.();
-    document.body.classList.remove("resizing");
-  }, [onHeaderResizeStop]);
+  const handleResizeStop = React.useCallback(
+    (finalW?: number) => {
+      onHeaderResizeStop?.(finalW);
+      document.body.classList.remove("resizing");
+    },
+    [onHeaderResizeStop]
+  );
 
   return (
     <Resizable
@@ -44,7 +49,7 @@ const ResizableTitle = React.memo((props: any) => {
           }}
           onMouseUp={(e) => {
             e.stopPropagation();
-            handleResizeStop();
+            handleResizeStop(lastWRef.current);
           }}
           style={{
             position: "absolute",
@@ -56,12 +61,22 @@ const ResizableTitle = React.memo((props: any) => {
           }}
         />
       }
-      onResize={onResize}
+      onResize={(e, data) => {
+        lastWRef.current = data.size.width;
+        onResize?.(e, data);
+      }}
       onResizeStart={handleResizeStart}
-      onResizeStop={handleResizeStop}
+      onResizeStop={(e, data) => handleResizeStop(data?.size?.width)}
       draggableOpts={{ enableUserSelectHack: false, useCSSTransforms: true }}
     >
-      <th {...restProps} style={{ ...(restProps?.style || {}), width }} />
+      {/* Ưu tiên style.width nếu được truyền từ onHeaderCell; fallback sang prop width */}
+      <th
+        {...restProps}
+        style={{
+          ...(restProps?.style || {}),
+          width: restProps?.style?.width ?? width,
+        }}
+      />
     </Resizable>
   );
 });
@@ -94,7 +109,6 @@ export type CustomTableProps<T extends object> = {
   onRowClickSelect?: boolean;
   preserveSelectedRowKeys?: boolean;
   rowKey?: string | ((record: T) => React.Key);
-  pageSizeOptions?: number[];
 
   // === Context menu ===
   contextMenuEnabled?: boolean;
@@ -107,12 +121,14 @@ export type CustomTableProps<T extends object> = {
     items?: (MenuProps["items"] & { onClick?: MenuProps["onClick"] }) | any;
   };
 
-  showAllRows?: boolean;
   highlightedCount?: number;
 
   // === Resize ===
   resizable?: boolean;
   onColumnResize?: (dataIndex: string, width: number) => void;
+
+  // === Performance ===
+  rowHeightPx?: number; // dùng cho content-visibility intrinsic size
 };
 
 /* ===================== Component ===================== */
@@ -134,6 +150,7 @@ export default function CustomTableV2<T extends object>({
   selected = 0,
   resizable = false,
   onColumnResize,
+  rowHeightPx = 40,
 }: CustomTableProps<T>) {
   /* ===== rowKey ===== */
   const getRowKey =
@@ -144,7 +161,7 @@ export default function CustomTableV2<T extends object>({
       : (record: any, index?: number) =>
           record?.id ?? record?.key ?? String(index);
 
-  /* ===== column widths ===== */
+  /* ===== column widths (state to persist after drop) ===== */
   const [columnWidths, setColumnWidths] = React.useState<
     Record<string, number>
   >(() => {
@@ -158,20 +175,49 @@ export default function CustomTableV2<T extends object>({
     return init;
   });
 
-  const handleResize = React.useMemo(() => {
-    return (dataIndex: string) => {
-      return (
-        _e: unknown,
-        { size }: { size: { width: number; height: number } }
-      ) => {
-        const nextW = Math.max(50, Math.min(1000, size.width));
-        setColumnWidths((prev) =>
-          prev[dataIndex] === nextW ? prev : { ...prev, [dataIndex]: nextW }
-        );
-        onColumnResize?.(dataIndex, nextW);
+  /* ===== CSS vars for live resize (no React re-render while dragging) ===== */
+  // const tableWrapRef = React.useRef<HTMLDivElement>(null);
+  const cssVarName = (k: string) => `--colw-${k}`;
+  const setCSSWidth = React.useCallback((k: string, w: number) => {
+    tableWrapRef.current?.style.setProperty(cssVarName(k), `${w}px`);
+  }, []);
+
+  // init/update vars from state
+  React.useEffect(() => {
+    Object.entries(columnWidths).forEach(([k, v]) => setCSSWidth(k, v));
+  }, [columnWidths, setCSSWidth]);
+
+  // live updater (rAF throttled) & commit on stop
+  const rafIdRef = React.useRef<number | null>(null);
+  const schedule = (fn: () => void) => {
+    if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      fn();
+    });
+  };
+  const clampW = (w: number) => Math.max(50, Math.min(1000, w));
+
+  const handleResizeLive = React.useMemo(() => {
+    return (dataIndex: string) =>
+      (_e: unknown, { size }: { size: { width: number; height: number } }) => {
+        const nextW = clampW(size.width);
+        schedule(() => setCSSWidth(dataIndex, nextW));
       };
-    };
-  }, [onColumnResize]);
+  }, [setCSSWidth]);
+
+  const commitWidth = React.useCallback(
+    (dataIndex: string, w?: number) => {
+      if (typeof w !== "number") return;
+      const nextW = clampW(w);
+      setCSSWidth(dataIndex, nextW);
+      setColumnWidths((prev) =>
+        prev[dataIndex] === nextW ? prev : { ...prev, [dataIndex]: nextW }
+      );
+      onColumnResize?.(dataIndex, nextW);
+    },
+    [onColumnResize, setCSSWidth]
+  );
 
   /* ===== Sort FE ===== */
   type Sorter = { field?: React.Key; order?: "ascend" | "descend" } | null;
@@ -202,48 +248,42 @@ export default function CustomTableV2<T extends object>({
   /* ===== selection ===== */
   const [internalKeys, setInternalKeys] = React.useState<React.Key[]>([]);
   const selectedKeys = selectedRowKeys ?? internalKeys;
-
   const setKeys = (keys: React.Key[], rows: T[]) => {
     if (selectedRowKeys === undefined) setInternalKeys(keys);
     onSelectedRowKeysChange?.(keys, rows);
   };
-
-  const selectionColW = 44; // width số cho cột checkbox (QUAN TRỌNG với virtual)
-
   const rowSelection = selectable
     ? {
         selectedRowKeys: selectedKeys,
-        onChange: (keys: React.Key[], rows: T[]) => setKeys(keys, rows),
-        preserveSelectedRowKeys,
-        columnWidth: selectionColW,
+        onChange: (k: React.Key[], r: T[]) => setKeys(k, r),
+        preserveSelectedRowKeys: true,
       }
     : undefined;
 
-  /* ===== drag highlight state ===== */
+  /* ===== drag highlight ===== */
   const [highlightedKeys, setHighlightedKeys] = React.useState<React.Key[]>([]);
   const [isMouseDown, setIsMouseDown] = React.useState(false);
   const [isDragging, setIsDragging] = React.useState(false);
   const [startIndex, setStartIndex] = React.useState<number | null>(null);
   const [lastClickTime, setLastClickTime] = React.useState<number>(0);
-  const [lastClickKey, setLastClickKey] = React.useState<React.Key | null>(null);
+  const [lastClickKey, setLastClickKey] = React.useState<React.Key | null>(
+    null
+  );
   const startYRef = React.useRef<number>(0);
   const DRAG_THRESHOLD = 3; // px
 
-  const keyIndexMap = useMemo(() => {
+  const keyIndexMap = React.useMemo(() => {
     const m = new Map<React.Key, number>();
     viewData.forEach((r, i) => m.set(getRowKey(r as any), i));
     return m;
   }, [viewData]);
-
   const getIndexByKey = (key: React.Key) => keyIndexMap.get(key) ?? -1;
   const getKeyByIndex = (idx: number) => getRowKey(viewData[idx] as any);
 
-  /* ===== context menu: GLOBAL ===== */
+  /* ===== context menu ===== */
   const [isResizingHeader, setIsResizingHeader] = React.useState(false);
   type CtxState = { open: boolean; x: number; y: number; record?: T };
   const [ctx, setCtx] = React.useState<CtxState>({ open: false, x: 0, y: 0 });
-
-  // Build & giữ model menu tại thời điểm mở (items + handlers)
   const [menuItems, setMenuItems] = React.useState<MenuProps["items"]>([]);
   const handlersRef = React.useRef<Record<string, MenuProps["onClick"]>>({});
   const menuLevelOnClickRef = React.useRef<MenuProps["onClick"]>(undefined);
@@ -272,66 +312,88 @@ export default function CustomTableV2<T extends object>({
     []
   );
 
-  const closeCtx = useCallback(() => {
-    setCtx((s) => ({ ...s, open: false }));
-  }, []);
+  const closeCtx = React.useCallback(
+    () => setCtx((s) => ({ ...s, open: false })),
+    []
+  );
 
-  // đóng menu khi click ngoài / Esc
-  useEffect(() => {
+  React.useEffect(() => {
     if (!ctx.open) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current?.contains(e.target as Node)) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (menuRef.current?.contains(t)) return;
+      // giữ menu khi click/right-click trong table; onCtx sẽ cập nhật record & di chuyển
+      if (tableWrapRef.current?.contains(t)) return;
       closeCtx();
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeCtx();
-    window.addEventListener("click", onDocClick);
-    window.addEventListener("contextmenu", onDocClick);
+    window.addEventListener("click", onDoc);
+    window.addEventListener("contextmenu", onDoc);
     window.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("click", onDocClick);
-      window.removeEventListener("contextmenu", onDocClick);
+      window.removeEventListener("click", onDoc);
+      window.removeEventListener("contextmenu", onDoc);
       window.removeEventListener("keydown", onKey);
     };
   }, [ctx.open, closeCtx]);
 
-  const highlightedKeySet = useMemo(
+  const highlightedKeySet = React.useMemo(
     () => new Set(highlightedKeys),
     [highlightedKeys]
   );
-  const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
-
-  const highlightedRowsMemo = useMemo(
+  const selectedKeySet = React.useMemo(
+    () => new Set(selectedKeys),
+    [selectedKeys]
+  );
+  const highlightedRowsMemo = React.useMemo(
     () => viewData.filter((r) => highlightedKeySet.has(getRowKey(r))),
     [viewData, highlightedKeySet]
   );
-
-  const selectedRowsMemo = useMemo(
+  const selectedRowsMemo = React.useMemo(
     () => viewData.filter((r) => selectedKeySet.has(getRowKey(r))),
     [viewData, selectedKeySet]
   );
 
-  // rowKey -> record map để bắt contextmenu ở wrapper
-  const rowMap = useMemo(() => {
+  const rowMap = React.useMemo(() => {
     const m = new Map<string, T>();
     viewData.forEach((r: any) => m.set(String(getRowKey(r)), r));
     return m;
   }, [viewData]);
 
-  // Bắt chuột phải ở wrapper của bảng
-  useEffect(() => {
+  React.useEffect(() => {
     const el = tableWrapRef.current;
     if (!el) return;
     const onCtx = (e: MouseEvent) => {
       if (!contextMenuEnabled || !getContextMenu || isResizingHeader) return;
       const target = e.target as HTMLElement;
       if (!el.contains(target)) return;
-
       e.preventDefault();
       e.stopPropagation();
 
-      const tr = target.closest("tr[data-row-key]") as HTMLElement | null;
-      const keyAttr = tr?.getAttribute("data-row-key") ?? undefined;
-      const record = keyAttr ? rowMap.get(String(keyAttr)) : undefined;
+      // 1) ưu tiên DOM: phần tử gần nhất có data-row-key
+      let record: T | undefined;
+      const rowEl = target.closest("[data-row-key]") as HTMLElement | null;
+      if (rowEl) {
+        const keyAttr = rowEl.getAttribute("data-row-key");
+        if (keyAttr) record = rowMap.get(String(keyAttr));
+      }
+      // 2) fallback theo toạ độ (khi virtual/sticky làm mất data-row-key tạm thời)
+      if (!record) {
+        const body = el.querySelector(
+          ".ant-table-body"
+        ) as HTMLDivElement | null;
+        const rect = body?.getBoundingClientRect();
+        if (rect) {
+          // ước lượng index theo vị trí click, giả định rowHeightPx
+          const scrollTop = body!.scrollTop;
+          const y = e.clientY - rect.top + scrollTop;
+          const idx = Math.max(
+            0,
+            Math.min(viewData.length - 1, Math.floor(y / rowHeightPx))
+          );
+          record = viewData[idx];
+        }
+      }
 
       const cfg = getContextMenu(
         record,
@@ -347,8 +409,13 @@ export default function CustomTableV2<T extends object>({
       setCtx({ open: true, x: e.clientX, y: e.clientY, record });
     };
 
-    el.addEventListener("contextmenu", onCtx);
-    return () => el.removeEventListener("contextmenu", onCtx);
+    el.addEventListener("contextmenu", onCtx, { capture: true });
+    return () =>
+      el.removeEventListener(
+        "contextmenu",
+        onCtx as any,
+        { capture: true } as any
+      );
   }, [
     contextMenuEnabled,
     getContextMenu,
@@ -358,24 +425,20 @@ export default function CustomTableV2<T extends object>({
     selectedRowsMemo,
     viewData,
     buildMenuModel,
+    rowHeightPx,
   ]);
 
-  /* ===== Toggle theo danh sách key (Space) ===== */
+  /* ===== Toggle by Space & Esc ===== */
   const toggleSelectionFor = React.useCallback(
     (keysToToggle: React.Key[]) => {
       if (!selectable || keysToToggle.length === 0) return;
-
       const cur = new Set(selectedKeys);
-      keysToToggle.forEach((k) => {
-        if (cur.has(k)) cur.delete(k);
-        else cur.add(k);
-      });
-
+      keysToToggle.forEach((k) => (cur.has(k) ? cur.delete(k) : cur.add(k)));
       const next = Array.from(cur);
-      const rows = dataSource.filter((r) => next.includes(getRowKey(r))) as T[];
+      const rows = viewData.filter((r) => next.includes(getRowKey(r))) as T[];
       setKeys(next, rows);
     },
-    [selectable, selectedKeys, dataSource, getRowKey]
+    [selectable, selectedKeys, viewData, getRowKey]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -386,73 +449,20 @@ export default function CustomTableV2<T extends object>({
       if (highlightedKeys.length === 0) return;
       e.preventDefault();
       toggleSelectionFor(highlightedKeys);
-      return;
-    }
-    if (e.key === "Escape") {
+    } else if (e.key === "Escape") {
       setHighlightedKeys([]);
     }
   };
 
-  // ===== Window-level mousemove để drag hoạt động với virtual =====
-  const bodyRef = React.useRef<HTMLDivElement | null>(null);
-  const [rowHeight, setRowHeight] = React.useState(36);
-
-  React.useLayoutEffect(() => {
-    const wrap = tableWrapRef.current;
-    if (!wrap) return;
-
-    // container cuộn của virtual body
-    const body = wrap.querySelector(".ant-table-body") as HTMLDivElement | null;
-    if (body) {
-      bodyRef.current = body;
-
-      const firstRow =
-        (body.querySelector("tr.ant-table-row") as HTMLElement | null) ||
-        (body.querySelector(".ant-table-row") as HTMLElement | null);
-      if (firstRow) {
-        const h = firstRow.getBoundingClientRect().height;
-        if (h) setRowHeight(h);
-      }
-    }
-  }, [viewData.length]);
-
   React.useEffect(() => {
-    const EDGE = 24; // px mép để auto-scroll
-    const SPEED = 16; // px mỗi tick
-
-    const onMove = (e: MouseEvent) => {
-      if (!isMouseDown || !bodyRef.current) return;
-
-      // bật dragging khi vượt ngưỡng
-      const dy = Math.abs(e.clientY - startYRef.current);
-      if (!isDragging && dy > DRAG_THRESHOLD) setIsDragging(true);
-
-      const body = bodyRef.current;
-      const rect = body.getBoundingClientRect();
-      const y = e.clientY - rect.top + body.scrollTop;
-      let endIdx = Math.floor(y / rowHeight);
-      endIdx = Math.max(0, Math.min(viewData.length - 1, endIdx));
-      updateRange(endIdx);
-
-      // auto scroll sát mép
-      if (e.clientY < rect.top + EDGE) body.scrollTop -= SPEED;
-      else if (e.clientY > rect.bottom - EDGE) body.scrollTop += SPEED;
-    };
-
-    const onUp = () => {
+    const up = () => {
       setIsMouseDown(false);
       setIsDragging(false);
     };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, []);
 
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [isMouseDown, isDragging, rowHeight, viewData.length]);
-
-  // Cập nhật dải bôi đen theo endIndex
   const updateRange = React.useCallback(
     (endIdx: number) => {
       if (startIndex === null || endIdx < 0) return;
@@ -470,27 +480,21 @@ export default function CustomTableV2<T extends object>({
     return !!td && td.classList.contains("ant-table-selection-column");
   };
 
-  /* ===== onRow (khởi động drag + click/dblclick) ===== */
   const onRow: TableProps<T>["onRow"] = (record, index) => ({
     onMouseDown: (e) => {
       if (!selectable) return;
-
       const target = e.target as HTMLElement;
-      // Nếu bấm trong ô selection/checkbox/resize → không bắt drag
       if (
         isClickInSelectionCell(target) ||
         target.closest(".ant-checkbox") ||
         target.closest(".react-resizable-handle")
-      ) {
+      )
         return;
-      }
-
       if ((e as React.MouseEvent).button !== 0) return;
 
       e.preventDefault();
       const startKey = getRowKey(record);
       const idx = index ?? getIndexByKey(startKey) ?? 0;
-
       setIsMouseDown(true);
       setIsDragging(false);
       setStartIndex(idx);
@@ -498,16 +502,28 @@ export default function CustomTableV2<T extends object>({
       setHighlightedKeys([startKey]);
       tableWrapRef.current?.focus();
     },
-
+    onMouseMove: (e) => {
+      if (!isMouseDown || isDragging) return;
+      const dy = Math.abs((e as React.MouseEvent).clientY - startYRef.current);
+      if (dy > DRAG_THRESHOLD) {
+        setIsDragging(true);
+        const endIdx = index ?? getIndexByKey(getRowKey(record));
+        updateRange(endIdx);
+      }
+    },
+    onMouseEnter: () => {
+      if (!isMouseDown || !isDragging) return;
+      const endIdx = index ?? getIndexByKey(getRowKey(record));
+      updateRange(endIdx);
+    },
+    onMouseUp: () => {
+      setIsMouseDown(false);
+      setIsDragging(false);
+    },
     onClick: (event) => {
       tableWrapRef.current?.focus();
-
-      if (!selectable) return;
-      if (isDragging) return;
-
+      if (!selectable || isDragging) return;
       const clickTarget = event.target as HTMLElement;
-
-      // Nếu click trong ô selection → toggle ngay
       if (isClickInSelectionCell(clickTarget)) {
         if (clickTarget.closest(".ant-checkbox")) return; // để AntD xử lý
         const key = getRowKey(record);
@@ -515,33 +531,24 @@ export default function CustomTableV2<T extends object>({
         const next = exists
           ? selectedKeys.filter((k) => k !== key)
           : [...selectedKeys, key];
-
-        const rows = dataSource.filter((r) =>
-          next.includes(getRowKey(r))
-        ) as T[];
+        const rows = viewData.filter((r) => next.includes(getRowKey(r))) as T[];
         setKeys(next, rows);
         return;
       }
-
       if (!onRowClickSelect) return;
       if (clickTarget.closest(".react-resizable-handle")) return;
 
       const now = Date.now();
       const currentKey = getRowKey(record);
-
       if (now - lastClickTime < 300 && lastClickKey === currentKey) {
         setLastClickTime(0);
         setLastClickKey(null);
-
         const key = getRowKey(record);
         const exists = selectedKeys.includes(key);
         const next = exists
           ? selectedKeys.filter((k) => k !== key)
           : [...selectedKeys, key];
-
-        const rows = dataSource.filter((r) =>
-          next.includes(getRowKey(r))
-        ) as T[];
+        const rows = viewData.filter((r) => next.includes(getRowKey(r))) as T[];
         setKeys(next, rows);
       } else {
         setLastClickTime(now);
@@ -550,29 +557,34 @@ export default function CustomTableV2<T extends object>({
     },
   });
 
-  /* ===== columns (ẩn/hiện) + STT + onHeaderCell (resize) ===== */
+  /* ===== columns (ẩn/hiện) + STT + onHeaderCell (resize via CSS vars) ===== */
   const antColumns = React.useMemo(() => {
     const visible = columns.filter(
       (c) => !hiddenColumnKeys.includes(c.dataIndex)
     );
 
-    const sttW =
+    const sttNum =
       typeof columnWidths["__index"] === "number"
         ? columnWidths["__index"]
         : 70;
+    const sttVar = `var(${cssVarName("__index")}, ${sttNum}px)`;
 
     const sttCol: any = {
       title: "STT",
       dataIndex: "__index",
-      width: sttW,
+      width: sttNum, // số cho Resizable
       fixed: "left" as const,
       render: (_: any, __: any, idx: number) => idx + 1,
       onHeaderCell: resizable
         ? () => ({
-            width: sttW,
-            onResize: handleResize("__index"),
+            width: sttNum,
+            style: { width: sttVar },
+            onResize: handleResizeLive("__index"),
             onHeaderResizeStart: () => setIsResizingHeader(true),
-            onHeaderResizeStop: () => setIsResizingHeader(false),
+            onHeaderResizeStop: (finalW?: number) => {
+              setIsResizingHeader(false);
+              commitWidth("__index", finalW);
+            },
             minWidth: 50,
             maxWidth: 200,
           })
@@ -580,7 +592,7 @@ export default function CustomTableV2<T extends object>({
     };
 
     const dataCols = visible.map((c) => {
-      const w =
+      const wNum =
         typeof columnWidths[c.dataIndex] === "number"
           ? columnWidths[c.dataIndex]
           : typeof c.width === "number"
@@ -588,12 +600,13 @@ export default function CustomTableV2<T extends object>({
           : typeof c.width === "string"
           ? parseInt(c.width, 10) || 150
           : 150;
+      const wVar = `var(${cssVarName(c.dataIndex)}, ${wNum}px)`;
 
       return {
         title: c.title,
         dataIndex: c.dataIndex,
         key: c.dataIndex,
-        width: w,
+        width: wNum, // size cho Resizable
         align: c.aligns,
         ellipsis: true,
         sorter: c.sorter ?? false,
@@ -603,10 +616,14 @@ export default function CustomTableV2<T extends object>({
         onHeaderCell:
           resizable && c.resizable !== false
             ? () => ({
-                width: w,
-                onResize: handleResize(c.dataIndex),
+                width: wNum,
+                style: { width: wVar }, // vẽ thực tế theo CSS var → không re-render khi kéo
+                onResize: handleResizeLive(c.dataIndex),
                 onHeaderResizeStart: () => setIsResizingHeader(true),
-                onHeaderResizeStop: () => setIsResizingHeader(false),
+                onHeaderResizeStop: (finalW?: number) => {
+                  setIsResizingHeader(false);
+                  commitWidth(c.dataIndex, finalW);
+                },
                 minWidth: c.minWidth ?? 50,
                 maxWidth: c.maxWidth ?? 1000,
               })
@@ -615,25 +632,33 @@ export default function CustomTableV2<T extends object>({
     });
 
     return [sttCol, ...dataCols];
-  }, [columns, hiddenColumnKeys, columnWidths, resizable, handleResize]);
+  }, [
+    columns,
+    hiddenColumnKeys,
+    columnWidths,
+    resizable,
+    handleResizeLive,
+    commitWidth,
+  ]);
 
-  /* ====== Fix layout khi virtual: tính scroll.x theo tổng width ====== */
-  const totalWidth = React.useMemo(() => {
-    const colsSum = (antColumns as any[]).reduce((s, c) => {
-      const w = Number(c.width);
-      return s + (Number.isFinite(w) ? w : 150);
-    }, 0);
-    // nếu có selection -> cộng thêm chiều rộng cột checkbox
-    const extra = selectable ? selectionColW : 0;
-    return Math.max(colsSum + extra, 1000);
-  }, [antColumns, selectable]);
-
-  /* ===== components (override header để resize) ===== */
+  /* ===== components (header resize + body row perf) ===== */
   const components: TableProps<T>["components"] = {
     ...(resizable ? { header: { cell: ResizableTitle } } : {}),
+    body: {
+      row: (props: any) => (
+        <tr
+          {...props}
+          style={{
+            ...props.style,
+            contentVisibility: "auto", // bỏ qua layout/paint cho row offscreen
+            containIntrinsicSize: `${rowHeightPx}px`,
+          }}
+        />
+      ),
+    },
   };
 
-  /* ===================== UI ===================== */
+  /* ===== UI ===== */
   const table = (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div
@@ -645,19 +670,18 @@ export default function CustomTableV2<T extends object>({
           borderRadius: 8,
           overflow: "hidden",
           background: "#fff",
+          contain: "layout paint", // hạn chế phạm vi reflow/paint khi kéo
         }}
         className="custom-table-strong-borders"
       >
         <Table<T>
-          virtual
           size="small"
           rowKey={getRowKey}
           columns={antColumns as any}
           dataSource={viewData}
           loading={loading}
-          sticky
-          // CHÚ Ý: cả x và y phải là number khi dùng virtual
-          scroll={{ x: totalWidth, y: 480 }}
+          sticky={false}
+          scroll={{ x: "max-content" }}
           pagination={false}
           onChange={onChange}
           tableLayout="fixed"
@@ -697,7 +721,6 @@ export default function CustomTableV2<T extends object>({
     </div>
   );
 
-  /* ===== Global Context Menu (Portal) ===== */
   const menuPortal =
     contextMenuEnabled &&
     ctx.open &&
