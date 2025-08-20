@@ -319,3 +319,8 @@
   user-select: none !important;
   cursor: col-resize !important;
 }
+
+.ant-table .ant-table-tbody > tr > td {
+  line-height: 40px; /* khớp với rowHeight */
+  white-space: nowrap;
+}

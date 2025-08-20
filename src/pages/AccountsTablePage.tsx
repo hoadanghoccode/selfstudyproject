@@ -282,6 +282,8 @@ export default function AccountsTablePage() {
       </div>
 
       <CustomTableV2<any>
+        // virtual // bật ảo hoá
+        // rowHeight={40} // nên cố định
         resizable={true}
         columns={columns}
         selected={selectedRowKeys.length}
