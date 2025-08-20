@@ -324,3 +324,10 @@
   line-height: 40px; /* khớp với rowHeight */
   white-space: nowrap;
 }
+
+.react-resizable-handle {
+  background: transparent !important; /* ẩn icon */
+  right: -5px;
+  width: 10px;
+  cursor: col-resize; /* chỉ để con trỏ kéo */
+}

@@ -1,6 +1,13 @@
 import { Table, Typography, Menu } from "antd";
 import type { TableProps, MenuProps } from "antd";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { Resizable } from "react-resizable";
 import "react-resizable/css/styles.css";
@@ -61,8 +68,11 @@ const ResizableTitle = React.memo((props: any) => {
       onResizeStop={handleResizeStop}
       draggableOpts={{ enableUserSelectHack: false, useCSSTransforms: true }}
     >
-      {/* <th {...restProps} style={{ position: "relative", width }} /> */}
-      <th {...restProps} style={{ ...(restProps?.style || {}), width }} />
+      {/* giữ relative để handle tuyệt đối không làm lệch */}
+      <th
+        {...restProps}
+        style={{ position: "relative", ...(restProps?.style || {}), width }}
+      />
     </Resizable>
   );
 });
@@ -108,7 +118,20 @@ export type CustomTableProps<T extends object> = {
     items?: (MenuProps["items"] & { onClick?: MenuProps["onClick"] }) | any;
   };
 
+  // === Scroll + Virtualization ===
+  /** true = hiển thị tất cả, false = bật scroll dọc + ảo hoá */
   showAllRows?: boolean;
+  /** chiều cao body khi bật cuộn (px) */
+  bodyScrollY?: number;
+  /** sticky header khi cuộn trang */
+  stickyHeader?: boolean;
+  /** bật/tắt ảo hoá khi có scroll.y */
+  virtual?: boolean;
+  /** chiều cao mỗi hàng (px); nếu bỏ trống sẽ auto đo */
+  virtualRowHeight?: number;
+  /** số hàng overscan mỗi phía */
+  virtualOverscan?: number;
+
   highlightedCount?: number;
 
   // === Resize ===
@@ -135,6 +158,14 @@ export default function CustomTableV2<T extends object>({
   selected = 0,
   resizable = false,
   onColumnResize,
+
+  // scroll + virtual defaults
+  showAllRows = true,
+  bodyScrollY,
+  stickyHeader = true,
+  virtual = true,
+  virtualRowHeight,
+  virtualOverscan = 8,
 }: CustomTableProps<T>) {
   // ===== rowKey =====
   const getRowKey =
@@ -146,18 +177,18 @@ export default function CustomTableV2<T extends object>({
           record?.id ?? record?.key ?? String(index);
 
   // ===== column widths =====
-  const [columnWidths, setColumnWidths] = React.useState<
-    Record<string, number>
-  >(() => {
-    const init: Record<string, number> = {};
-    columns.forEach((c) => {
-      if (typeof c.width === "number") init[c.dataIndex] = c.width;
-    });
-    init["__index"] = init["__index"] ?? 70;
-    return init;
-  });
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+    () => {
+      const init: Record<string, number> = {};
+      columns.forEach((c) => {
+        if (typeof c.width === "number") init[c.dataIndex] = c.width;
+      });
+      init["__index"] = init["__index"] ?? 70;
+      return init;
+    }
+  );
 
-  const handleResize = React.useMemo(() => {
+  const handleResize = useMemo(() => {
     return (dataIndex: string) => {
       return (
         _e: unknown,
@@ -174,7 +205,7 @@ export default function CustomTableV2<T extends object>({
 
   // ===== Sort FE =====
   type Sorter = { field?: React.Key; order?: "ascend" | "descend" } | null;
-  const [sorter, setSorter] = React.useState<Sorter>(() => {
+  const [sorter, setSorter] = useState<Sorter>(() => {
     const c = columns.find((c) => c.defaultSortOrder);
     return c ? { field: c.dataIndex, order: c.defaultSortOrder } : null;
   });
@@ -186,7 +217,7 @@ export default function CustomTableV2<T extends object>({
     setSorter(order ? { field, order } : null);
   };
 
-  const viewData = React.useMemo(() => {
+  const viewData = useMemo(() => {
     if (!sorter?.field) return dataSource;
     const col = columns.find((c) => c.dataIndex === sorter.field);
     if (!col?.sorter) return dataSource;
@@ -199,8 +230,9 @@ export default function CustomTableV2<T extends object>({
   }, [dataSource, columns, sorter]);
 
   // ===== selection =====
-  const [internalKeys, setInternalKeys] = React.useState<React.Key[]>([]);
+  const [internalKeys, setInternalKeys] = useState<React.Key[]>([]);
   const selectedKeys = selectedRowKeys ?? internalKeys;
+  const SELECTION_COL_WIDTH = 48; // cố định độ rộng cột checkbox
 
   const setKeys = (keys: React.Key[], rows: T[]) => {
     if (selectedRowKeys === undefined) setInternalKeys(keys);
@@ -212,19 +244,19 @@ export default function CustomTableV2<T extends object>({
         selectedRowKeys: selectedKeys,
         onChange: (keys: React.Key[], rows: T[]) => setKeys(keys, rows),
         preserveSelectedRowKeys,
+        columnWidth: SELECTION_COL_WIDTH,
+        fixed: true,
       }
     : undefined;
 
   // ===== drag highlight (HYBRID) =====
-  const [highlightedKeys, setHighlightedKeys] = React.useState<React.Key[]>([]);
-  const [isMouseDown, setIsMouseDown] = React.useState(false);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const [startIndex, setStartIndex] = React.useState<number | null>(null);
-  const [lastClickTime, setLastClickTime] = React.useState<number>(0);
-  const [lastClickKey, setLastClickKey] = React.useState<React.Key | null>(
-    null
-  );
-  const startYRef = React.useRef<number>(0);
+  const [highlightedKeys, setHighlightedKeys] = useState<React.Key[]>([]);
+  const [isMouseDown, setIsMouseDown] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startIndex, setStartIndex] = useState<number | null>(null);
+  const [lastClickTime, setLastClickTime] = useState<number>(0);
+  const [lastClickKey, setLastClickKey] = useState<React.Key | null>(null);
+  const startYRef = useRef<number>(0);
 
   const DRAG_THRESHOLD = 3; // px
 
@@ -238,18 +270,18 @@ export default function CustomTableV2<T extends object>({
   const getKeyByIndex = (idx: number) => getRowKey(viewData[idx] as any);
 
   // ===== context menu: GLOBAL =====
-  const [isResizingHeader, setIsResizingHeader] = React.useState(false);
+  const [isResizingHeader, setIsResizingHeader] = useState(false);
   type CtxState = { open: boolean; x: number; y: number; record?: T };
-  const [ctx, setCtx] = React.useState<CtxState>({ open: false, x: 0, y: 0 });
+  const [ctx, setCtx] = useState<CtxState>({ open: false, x: 0, y: 0 });
 
   // Build & giữ model menu tại thời điểm mở (items + handlers)
-  const [menuItems, setMenuItems] = React.useState<MenuProps["items"]>([]);
-  const handlersRef = React.useRef<Record<string, MenuProps["onClick"]>>({});
-  const menuLevelOnClickRef = React.useRef<MenuProps["onClick"]>(undefined);
-  const menuRef = React.useRef<HTMLDivElement>(null);
-  const tableWrapRef = React.useRef<HTMLDivElement>(null);
+  const [menuItems, setMenuItems] = useState<MenuProps["items"]>([]);
+  const handlersRef = useRef<Record<string, MenuProps["onClick"]>>({});
+  const menuLevelOnClickRef = useRef<MenuProps["onClick"]>(undefined);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
 
-  const buildMenuModel = React.useCallback(
+  const buildMenuModel = useCallback(
     (cfg: ReturnType<NonNullable<typeof getContextMenu>> | undefined) => {
       const handlers: Record<string, MenuProps["onClick"]> = {};
       const walk = (items: any[] | undefined): any[] | undefined => {
@@ -303,7 +335,6 @@ export default function CustomTableV2<T extends object>({
     () => viewData.filter((r) => highlightedKeySet.has(getRowKey(r))),
     [viewData, highlightedKeySet]
   );
-
   const selectedRowsMemo = useMemo(
     () => viewData.filter((r) => selectedKeySet.has(getRowKey(r))),
     [viewData, selectedKeySet]
@@ -328,8 +359,9 @@ export default function CustomTableV2<T extends object>({
       e.preventDefault();
       e.stopPropagation();
 
-      const tr = target.closest("tr[data-row-key]") as HTMLElement | null;
-      const keyAttr = tr?.getAttribute("data-row-key") ?? undefined;
+      // Hỗ trợ cả <tr> và <div> nếu sau này đổi body renderer
+      const rowEl = target.closest("[data-row-key]") as HTMLElement | null;
+      const keyAttr = rowEl?.getAttribute("data-row-key") ?? undefined;
       const record = keyAttr ? rowMap.get(String(keyAttr)) : undefined;
 
       const cfg = getContextMenu(
@@ -360,7 +392,7 @@ export default function CustomTableV2<T extends object>({
   ]);
 
   // ====== Toggle chọn theo danh sách key (Space) ======
-  const toggleSelectionFor = React.useCallback(
+  const toggleSelectionFor = useCallback(
     (keysToToggle: React.Key[]) => {
       if (!selectable || keysToToggle.length === 0) return;
 
@@ -397,7 +429,7 @@ export default function CustomTableV2<T extends object>({
   };
 
   // ====== Dừng drag nếu nhả chuột ngoài bảng ======
-  React.useEffect(() => {
+  useEffect(() => {
     const up = () => {
       setIsMouseDown(false);
       setIsDragging(false);
@@ -407,7 +439,7 @@ export default function CustomTableV2<T extends object>({
   }, []);
 
   // ====== Cập nhật dải bôi đen theo endIndex ======
-  const updateRange = React.useCallback(
+  const updateRange = useCallback(
     (endIdx: number) => {
       if (startIndex === null || endIdx < 0) return;
       const from = Math.min(startIndex, endIdx);
@@ -418,6 +450,7 @@ export default function CustomTableV2<T extends object>({
     },
     [startIndex, getKeyByIndex]
   );
+
   const isClickInSelectionCell = (el: HTMLElement | null) => {
     const td = el?.closest("td");
     return !!td && td.classList.contains("ant-table-selection-column");
@@ -528,7 +561,7 @@ export default function CustomTableV2<T extends object>({
   });
 
   // ===== columns (ẩn/hiện) + STT + onHeaderCell (resize) =====
-  const antColumns = React.useMemo(() => {
+  const antColumns = useMemo(() => {
     const visible = columns.filter(
       (c) => !hiddenColumnKeys.includes(c.dataIndex)
     );
@@ -543,7 +576,8 @@ export default function CustomTableV2<T extends object>({
       dataIndex: "__index",
       width: sttW,
       fixed: "left" as const,
-      render: (_: any, __: any, idx: number) => idx + 1,
+      // dùng index toàn cục để không reset khi windowing
+      render: (_: any, rec: any) => getIndexByKey(getRowKey(rec)) + 1,
       onHeaderCell: resizable
         ? () => ({
             width: sttW,
@@ -592,11 +626,130 @@ export default function CustomTableV2<T extends object>({
     });
 
     return [sttCol, ...dataCols];
-  }, [columns, hiddenColumnKeys, columnWidths, resizable, handleResize]);
+  }, [
+    columns,
+    hiddenColumnKeys,
+    columnWidths,
+    resizable,
+    handleResize,
+    getIndexByKey,
+    getRowKey,
+  ]);
 
-  // ===== components (chỉ override header để resize) =====
+  // ===== Tổng bề rộng để cấp cho scroll.x =====
+  const totalTableWidth = useMemo(() => {
+    const cols = antColumns as Array<{ width?: number }>;
+    const sum = cols.reduce(
+      (acc, c) => acc + (typeof c.width === "number" ? c.width : 0),
+      0
+    );
+    return sum + (rowSelection ? SELECTION_COL_WIDTH : 0);
+  }, [antColumns, rowSelection]);
+
+  // ===== components (header resize + body wrapper để chèn spacer) =====
+  // virtualization params
+  const yHeight = !showAllRows
+    ? typeof bodyScrollY === "number"
+      ? bodyScrollY
+      : 480
+    : undefined;
+
+  console.log("yHeight", yHeight);
+  const [measuredRowH, setMeasuredRowH] = useState<number | null>(null);
+  const rowH = virtualRowHeight ?? measuredRowH ?? 40;
+  const [scrollTop, setScrollTop] = useState(0);
+
+  // bắt scrollTop từ .ant-table-body
+  useLayoutEffect(() => {
+    if (!virtual || showAllRows || !yHeight) return;
+    const wrap = tableWrapRef.current;
+    const body = wrap?.querySelector(
+      ".ant-table-body"
+    ) as HTMLDivElement | null;
+    if (!body) return;
+
+    const onScroll = () => setScrollTop(body.scrollTop || 0);
+    body.addEventListener("scroll", onScroll);
+    onScroll();
+
+    // đo rowHeight nếu chưa có
+    const measure = () => {
+      const tr = body.querySelector(
+        ".ant-table-tbody > tr:not(.virtual-spacer)"
+      ) as HTMLTableRowElement | null;
+      if (tr) {
+        const h = tr.getBoundingClientRect().height;
+        if (h && h > 0 && Math.abs(h - (measuredRowH || 0)) > 0.5)
+          setMeasuredRowH(h);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    const tbody = body.querySelector(".ant-table-tbody");
+    if (tbody) ro.observe(tbody);
+
+    return () => {
+      body.removeEventListener("scroll", onScroll);
+      ro.disconnect();
+    };
+  }, [virtual, showAllRows, yHeight, measuredRowH]);
+
+  // tính cửa sổ hiển thị
+  const totalCount = viewData.length;
+  const visibleCount = yHeight
+    ? Math.ceil(yHeight / rowH) + virtualOverscan * 2
+    : totalCount;
+  const start = yHeight
+    ? Math.max(0, Math.floor(scrollTop / rowH) - virtualOverscan)
+    : 0;
+  const end = yHeight ? Math.min(totalCount, start + visibleCount) : totalCount;
+
+  const windowData = useMemo(() => {
+    return !virtual || showAllRows ? viewData : viewData.slice(start, end);
+  }, [virtual, showAllRows, viewData, start, end]);
+
+  const topPad = yHeight ? start * rowH : 0;
+  const bottomPad = yHeight ? (totalCount - end) * rowH : 0;
+
+  // wrapper để chèn spacer rows trong tbody
+  const BodyWrapper: React.FC<any> = (props) => {
+    if (!virtual || showAllRows || !yHeight) return <tbody {...props} />;
+    // số cột trong tbody: cột selection (nếu có) + số cột data (bao gồm STT)
+    const colSpan = (rowSelection ? 1 : 0) + (antColumns?.length || 0);
+    return (
+      <tbody {...props}>
+        {topPad > 0 && (
+          <tr
+            className="virtual-spacer"
+            aria-hidden="true"
+            style={{ height: topPad }}
+          >
+            <td
+              colSpan={colSpan}
+              style={{ padding: 0, border: "none", height: topPad }}
+            />
+          </tr>
+        )}
+        {props.children}
+        {bottomPad > 0 && (
+          <tr
+            className="virtual-spacer"
+            aria-hidden="true"
+            style={{ height: bottomPad }}
+          >
+            <td
+              colSpan={colSpan}
+              style={{ padding: 0, border: "none", height: bottomPad }}
+            />
+          </tr>
+        )}
+      </tbody>
+    );
+  };
+
   const components: TableProps<T>["components"] = {
     ...(resizable ? { header: { cell: ResizableTitle } } : {}),
+    body: { wrapper: BodyWrapper },
   };
 
   // ===== UI =====
@@ -618,18 +771,22 @@ export default function CustomTableV2<T extends object>({
           size="small"
           rowKey={getRowKey}
           columns={antColumns as any}
-          dataSource={viewData}
+          dataSource={windowData}
           loading={loading}
-          sticky={false}
-          scroll={{ x: "max-content", y: "800px" }}
+          sticky={stickyHeader}
+          scroll={{
+            x: totalTableWidth,
+            ...(showAllRows ? {} : { y: yHeight }),
+          }}
           pagination={false}
           onChange={onChange}
           tableLayout="fixed"
           rowSelection={rowSelection}
           onRow={onRow}
           rowClassName={(rec) => {
-            const isHighlighted = highlightedKeys.includes(getRowKey(rec));
-            const isSelected = selectedKeys.includes(getRowKey(rec));
+            const key = getRowKey(rec);
+            const isHighlighted = highlightedKeys.includes(key);
+            const isSelected = selectedKeys.includes(key);
             return `${isHighlighted ? "row-highlighted" : ""} ${
               isSelected ? "row-selected-no-bg" : ""
             }`;

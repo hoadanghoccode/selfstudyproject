@@ -282,14 +282,19 @@ export default function AccountsTablePage() {
       </div>
 
       <CustomTableV2<any>
-        resizable={true}
+        // resizable={true}
+        showAllRows={false}
+        bodyScrollY={520} // chiều cao body
+        virtual // bật ảo hoá (mặc định true)
+        virtualRowHeight={40} // có thể bỏ để auto đo
+        resizable
         columns={columns}
         selected={selectedRowKeys.length}
         dataSource={filteredDataSource}
         count={filteredDataSource.length}
         loading={loading}
         hiddenColumnKeys={hiddenCols}
-        showAllRows
+        // showAllRows
         // === Selection props ===
         selectable={true}
         selectedRowKeys={selectedRowKeys}
