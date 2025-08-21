@@ -280,16 +280,14 @@ export default function AccountsTablePage() {
           onChange={setHiddenCols}
         />
       </div>
+
       <CustomTableV2<any>
-        resizable={true}
-        // showAllRows={false}
-        // bodyScrollY={600}
-        // chiều cao body
-        // virtual
-        // bật ảo hoá (mặc định true)
-        // virtualRowHeight={40}
-        // có thể bỏ để auto đo
-        // resizable
+        // resizable={true}
+        showAllRows={false}
+        bodyScrollY={600} // chiều cao body
+        virtual // bật ảo hoá (mặc định true)
+        virtualRowHeight={40} // có thể bỏ để auto đo
+        resizable
         columns={columns}
         selected={selectedRowKeys.length}
         dataSource={filteredDataSource}
