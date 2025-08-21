@@ -723,7 +723,6 @@ export default function CustomTableV2<T extends object>({
       : 480
     : undefined;
 
-  console.log("yHeight", yHeight);
   const [measuredRowH, setMeasuredRowH] = useState<number | null>(null);
   const rowH = virtualRowHeight ?? measuredRowH ?? 40;
   const [scrollTop, setScrollTop] = useState(0);
@@ -842,7 +841,8 @@ export default function CustomTableV2<T extends object>({
           columns={antColumns as any}
           dataSource={windowData}
           loading={loading}
-          sticky={stickyHeader}
+          // sticky={stickyHeader}
+          sticky={isResizingHeader ? false : stickyHeader}
           scroll={{
             x: totalTableWidth,
             ...(showAllRows ? {} : { y: yHeight }),
