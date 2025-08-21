@@ -332,13 +332,14 @@
   cursor: col-resize; /* chỉ để con trỏ kéo */
 }
 
-/* .row-highlighted td {
-  background: rgba(22, 119, 255, 0.12) !important;
+/* Khi đang resize, hạn chế reflow/paint rườm rà */
+body.resizing .custom-table-strong-borders {
+  box-shadow: none !important;
 }
-.row-selected-no-bg td {
-  outline: 1px solid #52c41a;
+body.resizing .ant-table-tbody {
+  /* giữ hiển thị nhưng giảm “động” */
+  transition: none !important;
 }
-body.row-dragging {
-  user-select: none;
-  -webkit-user-select: none;
-} */
+body.resizing .ant-table-tbody * {
+  pointer-events: none !important; /* tránh hover/active repaint */
+}

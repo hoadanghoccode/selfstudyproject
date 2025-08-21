@@ -177,6 +177,18 @@ export default function CustomTableV2<T extends object>({
           record?.id ?? record?.key ?? String(index);
 
   // ===== column widths =====
+  // const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
+  //   () => {
+  //     const init: Record<string, number> = {};
+  //     columns.forEach((c) => {
+  //       if (typeof c.width === "number") init[c.dataIndex] = c.width;
+  //     });
+  //     init["__index"] = init["__index"] ?? 70;
+  //     return init;
+  //   }
+  // );
+
+  // ===== column widths =====
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(
     () => {
       const init: Record<string, number> = {};
@@ -188,6 +200,39 @@ export default function CustomTableV2<T extends object>({
     }
   );
 
+  // RAF scheduler
+  const rafIdRef = useRef<number | null>(null);
+  const pendingRef = useRef<{ key: string; w: number } | null>(null);
+
+  const flushResize = useCallback(() => {
+    if (!pendingRef.current) {
+      rafIdRef.current = null;
+      return;
+    }
+    const { key, w } = pendingRef.current;
+    pendingRef.current = null;
+
+    setColumnWidths((prev) => (prev[key] === w ? prev : { ...prev, [key]: w }));
+    rafIdRef.current = null;
+  }, []);
+
+  const scheduleResize = useCallback(
+    (key: string, w: number) => {
+      pendingRef.current = { key, w };
+      if (rafIdRef.current == null) {
+        rafIdRef.current = requestAnimationFrame(flushResize);
+      }
+    },
+    [flushResize]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
+
+  // dùng scheduleResize trong handleResize
   const handleResize = useMemo(() => {
     return (dataIndex: string) => {
       return (
@@ -195,13 +240,46 @@ export default function CustomTableV2<T extends object>({
         { size }: { size: { width: number; height: number } }
       ) => {
         const nextW = Math.max(50, Math.min(1000, size.width));
-        setColumnWidths((prev) =>
-          prev[dataIndex] === nextW ? prev : { ...prev, [dataIndex]: nextW }
-        );
-        onColumnResize?.(dataIndex, nextW);
+        scheduleResize(dataIndex, nextW);
+        // KHÔNG gọi onColumnResize ở mỗi tick, chỉ gọi khi stop (xem bên dưới)
       };
     };
-  }, [onColumnResize]);
+  }, [scheduleResize]);
+
+  const makeHeaderCell = useMemo(() => {
+    return (key: string, w: number, minW: number, maxW: number) => ({
+      width: w,
+      onResize: handleResize(key),
+      onHeaderResizeStart: () => setIsResizingHeader(true),
+      onHeaderResizeStop: () => {
+        setIsResizingHeader(false);
+        // flush lần cuối nếu còn pending
+        if (rafIdRef.current != null) {
+          cancelAnimationFrame(rafIdRef.current);
+          flushResize();
+        }
+        // bắn callback tổng kết (dùng giá trị pending nếu có)
+        onColumnResize?.(key, pendingRef.current?.w ?? w);
+      },
+      minWidth: minW,
+      maxWidth: maxW,
+    });
+  }, [handleResize, flushResize, onColumnResize]);
+
+  // const handleResize = useMemo(() => {
+  //   return (dataIndex: string) => {
+  //     return (
+  //       _e: unknown,
+  //       { size }: { size: { width: number; height: number } }
+  //     ) => {
+  //       const nextW = Math.max(50, Math.min(1000, size.width));
+  //       setColumnWidths((prev) =>
+  //         prev[dataIndex] === nextW ? prev : { ...prev, [dataIndex]: nextW }
+  //       );
+  //       onColumnResize?.(dataIndex, nextW);
+  //     };
+  //   };
+  // }, [onColumnResize]);
 
   // ===== Sort FE =====
   type Sorter = { field?: React.Key; order?: "ascend" | "descend" } | null;
@@ -576,17 +654,9 @@ export default function CustomTableV2<T extends object>({
       dataIndex: "__index",
       width: sttW,
       fixed: "left" as const,
-      // dùng index toàn cục để không reset khi windowing
       render: (_: any, rec: any) => getIndexByKey(getRowKey(rec)) + 1,
       onHeaderCell: resizable
-        ? () => ({
-            width: sttW,
-            onResize: handleResize("__index"),
-            onHeaderResizeStart: () => setIsResizingHeader(true),
-            onHeaderResizeStop: () => setIsResizingHeader(false),
-            minWidth: 50,
-            maxWidth: 200,
-          })
+        ? () => makeHeaderCell("__index", sttW, 50, 200)
         : undefined,
     };
 
@@ -613,14 +683,13 @@ export default function CustomTableV2<T extends object>({
           c.render ? c.render(value, record, index) : value,
         onHeaderCell:
           resizable && c.resizable !== false
-            ? () => ({
-                width: w,
-                onResize: handleResize(c.dataIndex),
-                onHeaderResizeStart: () => setIsResizingHeader(true),
-                onHeaderResizeStop: () => setIsResizingHeader(false),
-                minWidth: c.minWidth ?? 50,
-                maxWidth: c.maxWidth ?? 1000,
-              })
+            ? () =>
+                makeHeaderCell(
+                  c.dataIndex,
+                  w,
+                  c.minWidth ?? 50,
+                  c.maxWidth ?? 1000
+                )
             : undefined,
       };
     });
