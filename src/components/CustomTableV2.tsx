@@ -123,7 +123,7 @@ export default function CustomTableV2<T extends object>({
   selectable = true,
   selectedRowKeys,
   onSelectedRowKeysChange,
-  onRowClickSelect = true,
+  // onRowClickSelect = true,
   preserveSelectedRowKeys = true,
   rowKey,
   contextMenuEnabled = false,
