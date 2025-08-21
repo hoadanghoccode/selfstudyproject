@@ -331,3 +331,14 @@
   width: 10px;
   cursor: col-resize; /* chỉ để con trỏ kéo */
 }
+
+/* .row-highlighted td {
+  background: rgba(22, 119, 255, 0.12) !important;
+}
+.row-selected-no-bg td {
+  outline: 1px solid #52c41a;
+}
+body.row-dragging {
+  user-select: none;
+  -webkit-user-select: none;
+} */

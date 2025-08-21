@@ -282,7 +282,7 @@ export default function AccountsTablePage() {
       </div>
       <CustomTableV2<any>
         resizable={true}
-        showAllRows={false}
+        // showAllRows={false}
         // bodyScrollY={600}
         // chiều cao body
         // virtual
