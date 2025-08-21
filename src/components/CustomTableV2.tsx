@@ -94,8 +94,9 @@ export type CustomTableProps<T extends object> = {
   onRowClickSelect?: boolean;
   preserveSelectedRowKeys?: boolean;
   rowKey?: string | ((record: T) => React.Key);
+  pageSizeOptions?: number[];
 
-  // Context menu
+  // === Context menu ===
   contextMenuEnabled?: boolean;
   getContextMenu?: (
     record: T | undefined,
@@ -106,9 +107,10 @@ export type CustomTableProps<T extends object> = {
     items?: (MenuProps["items"] & { onClick?: MenuProps["onClick"] }) | any;
   };
 
+  showAllRows?: boolean;
   highlightedCount?: number;
 
-  // Resize
+  // === Resize ===
   resizable?: boolean;
   onColumnResize?: (dataIndex: string, width: number) => void;
 };
@@ -123,7 +125,7 @@ export default function CustomTableV2<T extends object>({
   selectable = true,
   selectedRowKeys,
   onSelectedRowKeysChange,
-  // onRowClickSelect = true,
+  onRowClickSelect = true,
   preserveSelectedRowKeys = true,
   rowKey,
   contextMenuEnabled = false,
@@ -141,6 +143,33 @@ export default function CustomTableV2<T extends object>({
       ? (record: any) => record?.[rowKey] ?? record?.id ?? record?.key
       : (record: any, index?: number) =>
           record?.id ?? record?.key ?? String(index);
+
+  /* ===== column widths ===== */
+  const [columnWidths, setColumnWidths] = React.useState<
+    Record<string, number>
+  >(() => {
+    const init: Record<string, number> = {};
+    columns.forEach((c) => {
+      if (typeof c.width === "number") init[c.dataIndex] = c.width;
+    });
+    init["__index"] = init["__index"] ?? 70;
+    return init;
+  });
+
+  const handleResize = React.useMemo(() => {
+    return (dataIndex: string) => {
+      return (
+        _e: unknown,
+        { size }: { size: { width: number; height: number } }
+      ) => {
+        const nextW = Math.max(50, Math.min(1000, size.width));
+        setColumnWidths((prev) =>
+          prev[dataIndex] === nextW ? prev : { ...prev, [dataIndex]: nextW }
+        );
+        onColumnResize?.(dataIndex, nextW);
+      };
+    };
+  }, [onColumnResize]);
 
   /* ===== Sort FE ===== */
   type Sorter = { field?: React.Key; order?: "ascend" | "descend" } | null;
@@ -168,116 +197,50 @@ export default function CustomTableV2<T extends object>({
     return arr;
   }, [dataSource, columns, sorter]);
 
-  /* ===== Infinite Scroll (FE) trên virtual ===== */
-  const PAGE = 10; // tuỳ chỉnh
-  const [list, setList] = React.useState<T[]>(() => viewData.slice(0, PAGE));
-  const [hasMore, setHasMore] = React.useState(viewData.length > PAGE);
-  const [loadingMore, setLoadingMore] = React.useState(false);
-
-  console.log("list", list);
-
-  useEffect(() => {
-    setList(viewData.slice(0, PAGE));
-    setHasMore(viewData.length > PAGE);
-  }, [viewData]);
-
-  const loadMore = React.useCallback(() => {
-    if (loadingMore || !hasMore) return;
-    setLoadingMore(true);
-    // nếu cần fetch API thì đổi chỗ này thành await fetch...
-    requestAnimationFrame(() => {
-      setList((prev) => {
-        const nextLen = Math.min(prev.length + PAGE, viewData.length);
-        return viewData.slice(0, nextLen);
-      });
-      setHasMore((_prev) => list.length + PAGE < viewData.length);
-      setLoadingMore(false);
-    });
-  }, [loadingMore, hasMore, viewData, list.length]);
-
   /* ===== selection ===== */
   const [internalKeys, setInternalKeys] = React.useState<React.Key[]>([]);
   const selectedKeys = selectedRowKeys ?? internalKeys;
+
   const setKeys = (keys: React.Key[], rows: T[]) => {
     if (selectedRowKeys === undefined) setInternalKeys(keys);
     onSelectedRowKeysChange?.(keys, rows);
   };
+
   const rowSelection = selectable
     ? {
         selectedRowKeys: selectedKeys,
-        onChange: (k: React.Key[], r: T[]) => setKeys(k, r),
+        onChange: (keys: React.Key[], rows: T[]) => setKeys(keys, rows),
         preserveSelectedRowKeys,
       }
     : undefined;
 
-  /* ===== Resize widths ===== */
-  const [columnWidths, setColumnWidths] = React.useState<
-    Record<string, number>
-  >(() => {
-    const init: Record<string, number> = {};
-    columns.forEach(
-      (c) => typeof c.width === "number" && (init[c.dataIndex] = c.width)
-    );
-    init["__index"] = init["__index"] ?? 70;
-    return init;
-  });
-  const handleResize = React.useMemo(() => {
-    return (dataIndex: string) =>
-      (_e: unknown, { size }: { size: { width: number; height: number } }) => {
-        const nextW = Math.max(50, Math.min(1000, size.width));
-        setColumnWidths((prev) =>
-          prev[dataIndex] === nextW ? prev : { ...prev, [dataIndex]: nextW }
-        );
-        onColumnResize?.(dataIndex, nextW);
-      };
-  }, [onColumnResize]);
-
-  /* ===== Drag highlight: RANGE-BASED (mượt) ===== */
+  /* ===== drag highlight state ===== */
+  const [highlightedKeys, setHighlightedKeys] = React.useState<React.Key[]>([]);
   const [isMouseDown, setIsMouseDown] = React.useState(false);
   const [isDragging, setIsDragging] = React.useState(false);
   const [startIndex, setStartIndex] = React.useState<number | null>(null);
-  const startYRef = React.useRef<number>(0);
-  const DRAG_THRESHOLD = 3;
-
-  // Range {from,to} theo index GLOBAL trong viewData (vì list là prefix slice)
-  const [highlightRange, setHighlightRange] = React.useState<{
-    from: number;
-    to: number;
-  } | null>(null);
-  const highlightRangeRef = React.useRef<{ from: number; to: number } | null>(
+  const [lastClickTime, setLastClickTime] = React.useState<number>(0);
+  const [lastClickKey, setLastClickKey] = React.useState<React.Key | null>(
     null
   );
-  useEffect(() => {
-    highlightRangeRef.current = highlightRange;
-  }, [highlightRange]);
+  const startYRef = React.useRef<number>(0);
+  const DRAG_THRESHOLD = 3; // px
 
   const keyIndexMap = useMemo(() => {
     const m = new Map<React.Key, number>();
     viewData.forEach((r, i) => m.set(getRowKey(r as any), i));
     return m;
   }, [viewData]);
+
   const getIndexByKey = (key: React.Key) => keyIndexMap.get(key) ?? -1;
+  const getKeyByIndex = (idx: number) => getRowKey(viewData[idx] as any);
 
-  // cập nhật range nhẹ nhàng
-  const updateRange = React.useCallback(
-    (endIdx: number) => {
-      if (startIndex === null || endIdx < 0) return;
-      const from = Math.min(startIndex, endIdx);
-      const to = Math.max(startIndex, endIdx);
-      const cur = highlightRangeRef.current;
-      if (!cur || cur.from !== from || cur.to !== to) {
-        const next = { from, to };
-        highlightRangeRef.current = next;
-        setHighlightRange(next);
-      }
-    },
-    [startIndex]
-  );
-
-  /* ===== Context menu (giữ logic của bạn) ===== */
+  /* ===== context menu: GLOBAL ===== */
   const [isResizingHeader, setIsResizingHeader] = React.useState(false);
   type CtxState = { open: boolean; x: number; y: number; record?: T };
   const [ctx, setCtx] = React.useState<CtxState>({ open: false, x: 0, y: 0 });
+
+  // Build & giữ model menu tại thời điểm mở (items + handlers)
   const [menuItems, setMenuItems] = React.useState<MenuProps["items"]>([]);
   const handlersRef = React.useRef<Record<string, MenuProps["onClick"]>>({});
   const menuLevelOnClickRef = React.useRef<MenuProps["onClick"]>(undefined);
@@ -307,11 +270,11 @@ export default function CustomTableV2<T extends object>({
     []
   );
 
-  const closeCtx = useCallback(
-    () => setCtx((s) => ({ ...s, open: false })),
-    []
-  );
+  const closeCtx = useCallback(() => {
+    setCtx((s) => ({ ...s, open: false }));
+  }, []);
 
+  // đóng menu khi click ngoài / Esc
   useEffect(() => {
     if (!ctx.open) return;
     const onDocClick = (e: MouseEvent) => {
@@ -329,12 +292,30 @@ export default function CustomTableV2<T extends object>({
     };
   }, [ctx.open, closeCtx]);
 
+  const highlightedKeySet = useMemo(
+    () => new Set(highlightedKeys),
+    [highlightedKeys]
+  );
+  const selectedKeySet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+
+  const highlightedRowsMemo = useMemo(
+    () => viewData.filter((r) => highlightedKeySet.has(getRowKey(r))),
+    [viewData, highlightedKeySet]
+  );
+
+  const selectedRowsMemo = useMemo(
+    () => viewData.filter((r) => selectedKeySet.has(getRowKey(r))),
+    [viewData, selectedKeySet]
+  );
+
+  // rowKey -> record map để bắt contextmenu ở wrapper
   const rowMap = useMemo(() => {
     const m = new Map<string, T>();
     viewData.forEach((r: any) => m.set(String(getRowKey(r)), r));
     return m;
   }, [viewData]);
 
+  // Bắt chuột phải ở wrapper của bảng
   useEffect(() => {
     const el = tableWrapRef.current;
     if (!el) return;
@@ -342,6 +323,7 @@ export default function CustomTableV2<T extends object>({
       if (!contextMenuEnabled || !getContextMenu || isResizingHeader) return;
       const target = e.target as HTMLElement;
       if (!el.contains(target)) return;
+
       e.preventDefault();
       e.stopPropagation();
 
@@ -349,17 +331,10 @@ export default function CustomTableV2<T extends object>({
       const keyAttr = tr?.getAttribute("data-row-key") ?? undefined;
       const record = keyAttr ? rowMap.get(String(keyAttr)) : undefined;
 
-      // tính selected/highlighted rows khi mở menu (lazy)
-      const selSet = new Set(selectedKeys);
-      const selectedRows = viewData.filter((r) => selSet.has(getRowKey(r)));
-      let highlightedRows: T[] = [];
-      const hr = highlightRangeRef.current;
-      if (hr) highlightedRows = viewData.slice(hr.from, hr.to + 1) as T[];
-
       const cfg = getContextMenu(
         record,
-        highlightedRows.length > 0 ? highlightedRows : selectedRows,
-        highlightedRows,
+        highlightedRowsMemo.length > 0 ? highlightedRowsMemo : selectedRowsMemo,
+        highlightedRowsMemo,
         viewData
       );
       const model = buildMenuModel(cfg);
@@ -369,6 +344,7 @@ export default function CustomTableV2<T extends object>({
 
       setCtx({ open: true, x: e.clientX, y: e.clientY, record });
     };
+
     el.addEventListener("contextmenu", onCtx);
     return () => el.removeEventListener("contextmenu", onCtx);
   }, [
@@ -376,77 +352,159 @@ export default function CustomTableV2<T extends object>({
     getContextMenu,
     isResizingHeader,
     rowMap,
+    highlightedRowsMemo,
+    selectedRowsMemo,
     viewData,
-    selectedKeys,
     buildMenuModel,
   ]);
 
-  /* ===== Keyboard toggle selection (Space) ===== */
-  const toggleSelectionForRange = React.useCallback(() => {
-    const hr = highlightRangeRef.current;
-    if (!selectable || !hr) return;
-    const keysToToggle = viewData.slice(hr.from, hr.to + 1).map(getRowKey);
-    const cur = new Set(selectedKeys);
-    keysToToggle.forEach((k) => (cur.has(k) ? cur.delete(k) : cur.add(k)));
-    const next = Array.from(cur);
-    const rows = viewData.filter((r) => next.includes(getRowKey(r))) as T[];
-    setKeys(next, rows);
-  }, [selectable, selectedKeys, viewData, getRowKey]);
+  /* ===== Toggle theo danh sách key (Space) ===== */
+  const toggleSelectionFor = React.useCallback(
+    (keysToToggle: React.Key[]) => {
+      if (!selectable || keysToToggle.length === 0) return;
+
+      const cur = new Set(selectedKeys);
+      keysToToggle.forEach((k) => {
+        if (cur.has(k)) cur.delete(k);
+        else cur.add(k);
+      });
+
+      const next = Array.from(cur);
+      const rows = dataSource.filter((r) => next.includes(getRowKey(r))) as T[];
+      setKeys(next, rows);
+    },
+    [selectable, selectedKeys, dataSource, getRowKey]
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.code === "Space" || e.key === " ") {
       const target = e.target as HTMLElement;
       if (target.closest('input,textarea,select,[contenteditable="true"]'))
         return;
+      if (highlightedKeys.length === 0) return;
       e.preventDefault();
-      toggleSelectionForRange();
+      toggleSelectionFor(highlightedKeys);
       return;
     }
-    if (e.key === "Escape") setHighlightRange(null);
+    if (e.key === "Escape") {
+      setHighlightedKeys([]);
+    }
   };
 
-  /* ===== onRow (khởi động drag + click/dblclick) ===== */
+  // Dừng drag nếu nhả chuột ngoài bảng
+  React.useEffect(() => {
+    const up = () => {
+      setIsMouseDown(false);
+      setIsDragging(false);
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  }, []);
+
+  // Cập nhật dải bôi đen theo endIndex
+  const updateRange = React.useCallback(
+    (endIdx: number) => {
+      if (startIndex === null || endIdx < 0) return;
+      const from = Math.min(startIndex, endIdx);
+      const to = Math.max(startIndex, endIdx);
+      const range: React.Key[] = [];
+      for (let i = from; i <= to; i++) range.push(getKeyByIndex(i));
+      setHighlightedKeys(range.length ? range : [getKeyByIndex(startIndex)]);
+    },
+    [startIndex, getKeyByIndex]
+  );
+
   const isClickInSelectionCell = (el: HTMLElement | null) => {
     const td = el?.closest("td");
     return !!td && td.classList.contains("ant-table-selection-column");
   };
 
+  /* ===== onRow (khởi động drag + click/dblclick) ===== */
   const onRow: TableProps<T>["onRow"] = (record, index) => ({
     onMouseDown: (e) => {
       if (!selectable) return;
+
       const target = e.target as HTMLElement;
+      // nếu bấm trong ô selection/checkbox → KHÔNG kích hoạt drag-highlight
       if (
         isClickInSelectionCell(target) ||
         target.closest(".ant-checkbox") ||
         target.closest(".react-resizable-handle")
-      )
+      ) {
         return;
-      if ((e as React.MouseEvent).button !== 0) return;
-      e.preventDefault();
+      }
 
+      if ((e as React.MouseEvent).button !== 0) return;
+
+      e.preventDefault();
       const startKey = getRowKey(record);
-      // index ở đây là index trong "list" (slice). Global index = index vì list là prefix của viewData.
-      const idxGlobal = index ?? getIndexByKey(startKey) ?? 0;
+      const idx = index ?? getIndexByKey(startKey) ?? 0;
 
       setIsMouseDown(true);
       setIsDragging(false);
-      setStartIndex(idxGlobal);
+      setStartIndex(idx);
       startYRef.current = (e as React.MouseEvent).clientY;
-
-      // highlight trước 1 dòng
-      const initRange = { from: idxGlobal, to: idxGlobal };
-      setHighlightRange(initRange);
-      highlightRangeRef.current = initRange;
-
+      setHighlightedKeys([startKey]);
       tableWrapRef.current?.focus();
+    },
+
+    onClick: (event) => {
+      tableWrapRef.current?.focus();
+
+      if (!selectable) return;
+      if (isDragging) return;
+
+      const clickTarget = event.target as HTMLElement;
+
+      // Nếu click trong ô selection → toggle ngay
+      if (isClickInSelectionCell(clickTarget)) {
+        if (clickTarget.closest(".ant-checkbox")) return; // để AntD xử lý
+        const key = getRowKey(record);
+        const exists = selectedKeys.includes(key);
+        const next = exists
+          ? selectedKeys.filter((k) => k !== key)
+          : [...selectedKeys, key];
+
+        const rows = dataSource.filter((r) =>
+          next.includes(getRowKey(r))
+        ) as T[];
+        setKeys(next, rows);
+        return;
+      }
+
+      if (!onRowClickSelect) return;
+      if (clickTarget.closest(".react-resizable-handle")) return;
+
+      const now = Date.now();
+      const currentKey = getRowKey(record);
+
+      if (now - lastClickTime < 300 && lastClickKey === currentKey) {
+        setLastClickTime(0);
+        setLastClickKey(null);
+
+        const key = getRowKey(record);
+        const exists = selectedKeys.includes(key);
+        const next = exists
+          ? selectedKeys.filter((k) => k !== key)
+          : [...selectedKeys, key];
+
+        const rows = dataSource.filter((r) =>
+          next.includes(getRowKey(r))
+        ) as T[];
+        setKeys(next, rows);
+      } else {
+        setLastClickTime(now);
+        setLastClickKey(currentKey);
+      }
     },
   });
 
-  /* ===== columns + onHeaderCell ===== */
+  /* ===== columns (ẩn/hiện) + STT + onHeaderCell (resize) ===== */
   const antColumns = React.useMemo(() => {
     const visible = columns.filter(
       (c) => !hiddenColumnKeys.includes(c.dataIndex)
     );
+
     const sttW =
       typeof columnWidths["__index"] === "number"
         ? columnWidths["__index"]
@@ -508,148 +566,75 @@ export default function CustomTableV2<T extends object>({
     return [sttCol, ...dataCols];
   }, [columns, hiddenColumnKeys, columnWidths, resizable, handleResize]);
 
-  /* ====== scroll.x theo tổng width ====== */
+  /* ====== Fix layout khi virtual: tính scroll.x theo tổng width ====== */
   const totalWidth = React.useMemo(() => {
     const sum = (antColumns as any[]).reduce((s, c) => {
       const w = Number(c.width);
       return s + (Number.isFinite(w) ? w : 150);
     }, 0);
+    // sàn một giá trị để tránh co hẹp; bạn có thể điều chỉnh
     return Math.max(sum, 1000);
   }, [antColumns]);
 
+  /* ===== components (override header để resize) ===== */
   const components: TableProps<T>["components"] = {
     ...(resizable ? { header: { cell: ResizableTitle } } : {}),
   };
 
-  /* ======= body holder + rowHeight + infinite scroll listener ======= */
+  /* ======= Lấy ref body + đo rowHeight (phục vụ kéo-bôi-đen với virtual) ======= */
   const [rowHeight, setRowHeight] = React.useState(36);
 
   React.useLayoutEffect(() => {
     const wrap = tableWrapRef.current;
     if (!wrap) return;
-    const holder =
-      (wrap.querySelector(
-        ".rc-virtual-list-holder"
-      ) as HTMLDivElement | null) ||
-      (wrap.querySelector(".ant-table-body") as HTMLDivElement | null);
-    bodyRef.current = holder;
 
-    if (holder) {
+    // container cuộn của body (với virtual)
+    const body = wrap.querySelector(".ant-table-body") as HTMLDivElement | null;
+    if (body) {
+      bodyRef.current = body;
+
+      // đo chiều cao 1 hàng
       const firstRow =
-        (holder.querySelector("tr.ant-table-row") as HTMLElement | null) ||
-        (holder.querySelector(".ant-table-row") as HTMLElement | null);
+        (body.querySelector("tr.ant-table-row") as HTMLElement | null) ||
+        (body.querySelector(".ant-table-row") as HTMLElement | null);
       if (firstRow) {
         const h = firstRow.getBoundingClientRect().height;
         if (h) setRowHeight(h);
       }
     }
-  }, [list.length, sorter, antColumns]);
+  }, [viewData.length, sorter, antColumns]);
 
-  // infinite scroll: lắng nghe scroll trên holder
-  useEffect(() => {
-    const holder = bodyRef.current;
-    if (!holder) return;
+  /* ======= Mouse move trên container: tính endIndex + auto scroll ======= */
+  React.useEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
 
-    const THRESHOLD = 200; // px
-    let ticking = false;
-
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        ticking = false;
-        if (loadingMore || !hasMore) return;
-        const { scrollTop, clientHeight, scrollHeight } = holder;
-        if (scrollTop + clientHeight >= scrollHeight - THRESHOLD) loadMore();
-      });
-    };
-
-    holder.addEventListener("scroll", onScroll);
-    return () => holder.removeEventListener("scroll", onScroll);
-  }, [loadMore, hasMore, loadingMore]);
-
-  /* ======= Global mousemove/mouseup cho drag ======= */
-  const isMouseDownRef = React.useRef(false);
-  const isDraggingRef = React.useRef(false);
-  const rowHeightRef = React.useRef(rowHeight);
-  const viewLenRef = React.useRef(viewData.length);
-  const updateRangeRef = React.useRef(updateRange);
-
-  useEffect(() => {
-    rowHeightRef.current = rowHeight;
-  }, [rowHeight]);
-  useEffect(() => {
-    viewLenRef.current = viewData.length;
-  }, [viewData.length]);
-  useEffect(() => {
-    updateRangeRef.current = updateRange;
-  }, [updateRange]);
-  useEffect(() => {
-    isMouseDownRef.current = isMouseDown;
-  }, [isMouseDown]);
-  useEffect(() => {
-    isDraggingRef.current = isDragging;
-  }, [isDragging]);
-
-  useEffect(() => {
-    let raf: number | null = null;
+    const EDGE = 24; // px: vùng mép để auto scroll
+    const SPEED = 16; // px mỗi frame
 
     const onMove = (e: MouseEvent) => {
-      if (!isMouseDownRef.current) return;
-      const el = bodyRef.current;
-      if (!el) return;
+      if (!isMouseDown) return;
 
+      // bật state dragging sau khi vượt ngưỡng
       const dy = Math.abs(e.clientY - startYRef.current);
-      if (!isDraggingRef.current && dy > DRAG_THRESHOLD) {
+      if (!isDragging && dy > DRAG_THRESHOLD) {
         setIsDragging(true);
-        isDraggingRef.current = true;
-        document.body.classList.add("row-dragging");
       }
 
       const rect = el.getBoundingClientRect();
-      const y = e.clientY - rect.top + el.scrollTop;
-      const rh = rowHeightRef.current || 1;
+      const y = e.clientY - rect.top + el.scrollTop; // toạ độ tương đối trong body
+      let endIdx = Math.floor(y / rowHeight);
+      endIdx = Math.max(0, Math.min(viewData.length - 1, endIdx));
+      updateRange(endIdx);
 
-      let endIdx = Math.floor(y / rh);
-      const total = viewLenRef.current;
-      endIdx = Math.max(0, Math.min(total - 1, endIdx));
-      updateRangeRef.current(endIdx);
-
-      // auto scroll
-      const EDGE = 24,
-        SPEED = 16;
-      const wantUp = e.clientY < rect.top + EDGE;
-      const wantDown = e.clientY > rect.bottom - EDGE;
-
-      if (raf) cancelAnimationFrame(raf);
-      if (wantUp || wantDown) {
-        const step = () => {
-          if (!isMouseDownRef.current) return;
-          if (wantUp) el.scrollTop -= SPEED;
-          else if (wantDown) el.scrollTop += SPEED;
-          raf = requestAnimationFrame(step);
-        };
-        raf = requestAnimationFrame(step);
-      }
+      // auto scroll khi kéo sát mép
+      if (e.clientY < rect.top + EDGE) el.scrollTop -= SPEED;
+      else if (e.clientY > rect.bottom - EDGE) el.scrollTop += SPEED;
     };
 
-    const onUp = () => {
-      if (raf) cancelAnimationFrame(raf);
-      setIsMouseDown(false);
-      isMouseDownRef.current = false;
-      setIsDragging(false);
-      isDraggingRef.current = false;
-      document.body.classList.remove("row-dragging");
-    };
-
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, []);
+    el.addEventListener("mousemove", onMove);
+    return () => el.removeEventListener("mousemove", onMove);
+  }, [isMouseDown, isDragging, rowHeight, viewData.length, updateRange]);
 
   /* ===================== UI ===================== */
   const table = (
@@ -667,23 +652,23 @@ export default function CustomTableV2<T extends object>({
         className="custom-table-strong-borders"
       >
         <Table<T>
-          // virtual
+          virtual
           size="small"
           rowKey={getRowKey}
           columns={antColumns as any}
-          dataSource={list}
+          dataSource={viewData}
           loading={loading}
-          scroll={{ x: totalWidth, y: 480 }} // x/y phải là number khi virtual
+          // sticky
+          // CHÚ Ý: cả x và y phải là number khi dùng virtual
+          scroll={{ x: totalWidth, y: 480 }}
           pagination={false}
           onChange={onChange}
+          // tableLayout="fixed"
           rowSelection={rowSelection}
           onRow={onRow}
-          rowClassName={(_rec, idx) => {
-            const key = getRowKey(_rec);
-            const isSelected = selectedKeys.includes(key);
-            // idx ở đây là index trong "list" (prefix của viewData) => globalIdx = idx
-            const hr = highlightRangeRef.current;
-            const isHighlighted = hr ? idx >= hr.from && idx <= hr.to : false;
+          rowClassName={(rec) => {
+            const isHighlighted = highlightedKeys.includes(getRowKey(rec));
+            const isSelected = selectedKeys.includes(getRowKey(rec));
             return `${isHighlighted ? "row-highlighted" : ""} ${
               isSelected ? "row-selected-no-bg" : ""
             }`;
@@ -704,20 +689,12 @@ export default function CustomTableV2<T extends object>({
         <Typography.Text>
           Bôi đen:{" "}
           <span style={{ color: "#1677ff" }}>
-            {highlightedCount ??
-              (highlightRange
-                ? highlightRange.to - highlightRange.from + 1
-                : 0)}
+            {highlightedCount ?? highlightedKeys.length}
           </span>
           <span style={{ marginLeft: 12 }}>Đã chọn: </span>
           <span style={{ color: "green" }}>{selected}</span>
           <span style={{ marginLeft: 12 }}>Tất cả: </span>
           <span style={{ color: "red" }}>{count}</span>
-          {loadingMore && (
-            <span style={{ marginLeft: 12, color: "#999" }}>
-              (đang tải thêm...)
-            </span>
-          )}
         </Typography.Text>
       </div>
     </div>
@@ -763,9 +740,3 @@ export default function CustomTableV2<T extends object>({
     </>
   );
 }
-
-/* ===== Gợi ý CSS để thấy rõ highlight =====
-.row-highlighted td { background: rgba(22,119,255,0.12) !important; }
-.row-selected-no-bg td { outline: 1px solid #52c41a; }
-body.row-dragging { user-select: none; -webkit-user-select: none; }
-*/
